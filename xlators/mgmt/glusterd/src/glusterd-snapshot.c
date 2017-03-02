@@ -88,7 +88,7 @@ typedef struct snap_create_args_ snap_create_args_t;
 
 
 /* Look for disconnected peers, for missed snap creates or deletes */
-static int32_t
+int32_t
 glusterd_find_missed_snap (dict_t *rsp_dict, glusterd_volinfo_t *vol,
                            struct cds_list_head *peers, int32_t op)
 {

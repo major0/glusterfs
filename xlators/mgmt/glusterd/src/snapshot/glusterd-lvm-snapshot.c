@@ -1,4 +1,25 @@
-#include <stdio.h>
+/*
+   Copyright (c) 2013-2014 Red Hat, Inc. <http://www.redhat.com>
+   This file is part of GlusterFS.
+
+   This file is licensed to you under your choice of the GNU Lesser
+   General Public License, version 3 or any later version (LGPLv3 or
+   later), or the GNU General Public License, version 2 (GPLv2), in all
+   cases as published by the Free Software Foundation.
+*/
+#include <inttypes.h>
+#include <sys/types.h>
+#include <unistd.h>
+#include "glusterd-messages.h"
+#include "glusterd-errno.h"
+
+#include "glusterd.h"
+#include "glusterd-utils.h"
+#include "glusterd-snapshot-utils.h"
+#include "dict.h"
+#include "run.h"
+
+#include "lvm-defaults.h"
 
 /* This function is called to get the device path of the snap lvm. Usually
    if /dev/mapper/<group-name>-<lvm-name> is the device for the lvm,

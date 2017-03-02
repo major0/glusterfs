@@ -157,5 +157,18 @@ gd_get_snap_conf_values_if_present (dict_t *opts, uint64_t *sys_hard_limit,
 int
 glusterd_get_snap_status_str (glusterd_snap_t *snapinfo, char *snap_status_str);
 
-#endif
+int32_t
+glusterd_find_missed_snap (dict_t *rsp_dict, glusterd_volinfo_t *vol,
+                           struct cds_list_head *peers, int32_t op);
 
+int
+glusterd_remove_trashpath (char *volname);
+
+int
+glusterd_get_brick_lvm_details (dict_t *rsp_dict,
+				glusterd_brickinfo_t *brickinfo, char *volname,
+				char *device, char *key_prefix);
+int
+glusterd_snapshot_restore (dict_t *dict, char **op_errstr, dict_t *rsp_dict);
+
+#endif
