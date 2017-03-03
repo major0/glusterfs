@@ -1,10 +1,19 @@
-#include <inittypes.h>
+#include <inttypes.h>
 #include <sys/types.h>
 #include <unistd.h>
 
+#include "glusterd-messages.h"
+#include "glusterd-errno.h"
+
+#include "glusterd.h"
+#include "glusterd-utils.h"
+#include "glusterd-snapshot-utils.h"
+#include "dict.h"
+#include "run.h"
+
 static char *
-glusterd_zfs_snapshot_device (char *snapname, int32_t brickcount,
-                              glusterd_brickinfo_t  *brickinfo)
+glusterd_zfs_snapshot_device (char *device, char *snapname,
+                              int32_t brickcount)
 {
 	char        snap[PATH_MAX]      = "";
 	char        msg[1024]           = "";
@@ -25,13 +34,13 @@ glusterd_zfs_snapshot_device (char *snapname, int32_t brickcount,
 	runinit (&runner);
 	snprintf (msg, sizeof (msg), "running zfs command, "
 			"for getting zfs pool name from brick path");
-	runner_add_args (&runner, "zfs", "list", "-Ho", "name", brickinfo->path, NULL);
+	runner_add_args (&runner, "zfs", "list", "-Ho", "name", device, NULL);
 	runner_redir (&runner, STDOUT_FILENO, RUN_PIPE);
 	runner_log (&runner, "", GF_LOG_DEBUG, msg);
 	ret = runner_start (&runner);
 	if (ret == -1) {
 		gf_log (this->name, GF_LOG_ERROR, "Failed to get pool name "
-			"for device %s", brickinfo->path);
+			"for device %s", device);
 		runner_end (&runner);
 		goto out;
 	}
@@ -64,14 +73,14 @@ glusterd_zfs_snapshot_create (glusterd_brickinfo_t *brickinfo,
 {
 	char             msg[NAME_MAX]    = "";
 	char             buf[PATH_MAX]    = "";
-	char            *ptr              = NULL;
-	char            *origin_device    = NULL;
+	/*char            *ptr              = NULL;*/
+	/*char            *origin_device    = NULL;*/
 	int              ret              = -1;
-	int              len              = 0;
-	gf_boolean_t     match            = _gf_false;
+	/*int              len              = 0;*/
+	/*gf_boolean_t     match            = _gf_false;*/
 	runner_t         runner           = {0,};
 	xlator_t        *this             = NULL;
-	char            delimiter[]       = "/";
+	/*char            delimiter[]       = "/";*/
 	char            *zpool_name       = NULL;
 	char            *zpool_id         = NULL;
 	char            *s1               = NULL;
@@ -156,6 +165,7 @@ out:
         return ret;
 }
 
+#if 0
 static int
 glusterd_zfs_snapshot_restore (dict_t *dict, dict_t *rsp_dict,
                         glusterd_volinfo_t *snap_vol,
@@ -203,6 +213,7 @@ glusterd_zfs_snapshot_restore (dict_t *dict, dict_t *rsp_dict,
 out:
 	return ret;
 }
+#endif
 
 static int
 glusterd_zfs_brick_details (dict_t *rsp_dict,
@@ -217,7 +228,7 @@ glusterd_zfs_brick_details (dict_t *rsp_dict,
 	char                    msg[PATH_MAX]   =       "";
 	char                    buf[PATH_MAX]   =       "";
 	char                    *ptr            =       NULL;
-	char                    *token          =       NULL;
+	/*char                    *token          =       NULL;*/
 	char                    key[PATH_MAX]   =       "";
 	char                    *value          =       NULL;
 

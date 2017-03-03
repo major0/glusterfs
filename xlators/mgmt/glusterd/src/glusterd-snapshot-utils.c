@@ -127,11 +127,13 @@ glusterd_cleanup_snaps_for_volume (glusterd_volinfo_t *volinfo)
 }
 
 struct glusterd_snap_ops lvm_snap_ops;
+struct glusterd_snap_ops zfs_snap_ops;
 gf_boolean_t
 glusterd_snapshot_probe(char *brick_path, glusterd_brickinfo_t *brickinfo)
 {
 	struct glusterd_snap_ops *glusterd_snap_backend[] = {
 					&lvm_snap_ops,
+					&zfs_snap_ops,
 					0,
 				  };
         xlator_t                 *this  = NULL;
