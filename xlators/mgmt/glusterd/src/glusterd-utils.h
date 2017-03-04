@@ -649,9 +649,6 @@ glusterd_get_mnt_entry_info (char *mnt_pt, char *buff, int buflen,
 int
 glusterd_get_brick_root (char *path, char **mount_point);
 
-int32_t
-glusterd_lvm_snapshot_remove (dict_t *rsp_dict, glusterd_volinfo_t *snap_vol);
-
 gf_boolean_t
 gd_vol_is_geo_rep_active (glusterd_volinfo_t *volinfo);
 
@@ -660,10 +657,6 @@ glusterd_get_brick_mount_dir (char *brickpath, char *hostname, char *mount_dir);
 
 int32_t
 glusterd_aggr_brick_mount_dirs (dict_t *aggr, dict_t *rsp_dict);
-
-int32_t
-glusterd_take_lvm_snapshot (glusterd_brickinfo_t *brickinfo,
-                            char *origin_brick_path);
 
 void
 glusterd_launch_synctask (synctask_fn_t fn, void *opaque);

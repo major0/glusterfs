@@ -51,6 +51,7 @@
 #include "glusterd-messages.h"
 #include "glusterd-volgen.h"
 #include "glusterd-snapshot-utils.h"
+#include "glusterd-lvm-snapshot.h"
 #include "glusterd-svc-mgmt.h"
 #include "glusterd-svc-helper.h"
 #include "glusterd-shd-svc.h"

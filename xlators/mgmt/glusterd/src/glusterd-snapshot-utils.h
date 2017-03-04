@@ -164,11 +164,4 @@ glusterd_find_missed_snap (dict_t *rsp_dict, glusterd_volinfo_t *vol,
 int
 glusterd_remove_trashpath (char *volname);
 
-int
-glusterd_get_brick_lvm_details (dict_t *rsp_dict,
-				glusterd_brickinfo_t *brickinfo, char *volname,
-				char *device, char *key_prefix);
-int
-glusterd_snapshot_restore (dict_t *dict, char **op_errstr, dict_t *rsp_dict);
-
 #endif

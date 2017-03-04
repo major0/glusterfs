@@ -30,6 +30,7 @@
 #include "glusterd-server-quorum.h"
 #include "glusterd-messages.h"
 #include "glusterd-errno.h"
+#include "glusterd-lvm-snapshot.h"
 
 /*
  *  glusterd_snap_geo_rep_restore:
