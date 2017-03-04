@@ -34,6 +34,7 @@
 #include "store.h"
 #include "glusterd-store.h"
 #include "glusterd-snapshot-utils.h"
+#include "glusterd-lvm-snapshot.h"
 #include "glusterd-messages.h"
 
 #include "rpc-clnt.h"
@@ -3443,7 +3444,7 @@ glusterd_mount_brick_paths (char *brick_mount_path,
                         "Activating %s successful", brickinfo->device_path);
 
         /* Mount the snapshot */
-        ret = glusterd_mount_lvm_snapshot (brickinfo, brick_mount_path);
+        ret = glusterd_lvm_snapshot_mount (brickinfo, brick_mount_path);
         if (ret) {
                 gf_msg (this->name, GF_LOG_ERROR, 0,
                         GD_MSG_SNAP_MOUNT_FAIL,

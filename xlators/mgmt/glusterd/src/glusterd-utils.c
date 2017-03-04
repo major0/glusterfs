@@ -144,6 +144,39 @@ out:
         return ret;
 }
 
+/* FIXME this is generic enough that it might be better to place it into a
+ * different source tree somewhere. */
+gf_boolean_t
+glusterd_mntopts_exists (const char *str, const char *opts)
+{
+        char          *dup_val     = NULL;
+        char          *savetok     = NULL;
+        char          *token       = NULL;
+        gf_boolean_t   exists      = _gf_false;
+
+        GF_ASSERT (opts);
+
+        if (!str || !strlen(str))
+                goto out;
+
+        dup_val = gf_strdup (str);
+        if (!dup_val)
+                goto out;
+
+        token = strtok_r (dup_val, ",", &savetok);
+        while (token) {
+                if (!strcmp (token, opts)) {
+                        exists = _gf_true;
+                        goto out;
+                }
+                token = strtok_r (NULL, ",", &savetok);
+        }
+
+out:
+        GF_FREE (dup_val);
+        return exists;
+}
+
 int
 glusterd_volume_brick_for_each (glusterd_volinfo_t *volinfo, void *data,
                int (*fn) (glusterd_volinfo_t *, glusterd_brickinfo_t *,

@@ -1961,9 +1961,9 @@ glusterd_snap_create_clone_common_prevalidate (dict_t *rsp_dict, int flags,
                         }
                 }
 
-                device = glusterd_lvm_snap_device_path (orig_device,
-                                                  snap_volname,
-                                                  brick_count);
+                device = glusterd_lvm_snapshot_device (orig_device,
+                                                       snap_volname,
+                                                       brick_count);
                 if (!device) {
                         snprintf (err_str, PATH_MAX,
                                   "cannot copy the snapshot device "
@@ -4170,7 +4170,7 @@ glusterd_snap_brick_create (glusterd_volinfo_t *snap_volinfo,
                         MS_MGC_VAL, "nouuid");
            But for now, mounting using runner apis.
         */
-        ret = glusterd_mount_lvm_snapshot (brickinfo, snap_brick_mount_path);
+        ret = glusterd_lvm_snapshot_mount (brickinfo, snap_brick_mount_path);
         if (ret) {
                 gf_msg (this->name, GF_LOG_ERROR, 0,
                         GD_MSG_LVM_MOUNT_FAILED,
@@ -4527,7 +4527,7 @@ glusterd_take_brick_snapshot (dict_t *dict, glusterd_volinfo_t *snap_vol,
                 goto out;
         }
 
-        ret = glusterd_lvm_take_snapshot (brickinfo, origin_brick_path);
+        ret = glusterd_lvm_snapshot_create (brickinfo, origin_brick_path);
         if (ret) {
                 gf_msg (this->name, GF_LOG_ERROR, 0,
                         GD_MSG_SNAP_CREATION_FAIL, "Failed to take snapshot of "
@@ -6762,7 +6762,7 @@ glusterd_get_single_brick_status (char **op_errstr, dict_t *rsp_dict,
                 goto out;
         }
 
-        ret = glusterd_lvm_get_brick_details (rsp_dict, brickinfo,
+        ret = glusterd_lvm_brick_details (rsp_dict, brickinfo,
                                               snap_volinfo->volname,
                                               device, key);
         if (ret) {

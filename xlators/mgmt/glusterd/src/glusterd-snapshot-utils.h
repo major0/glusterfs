@@ -69,10 +69,6 @@ gd_restore_snap_volume (dict_t *dict, dict_t *rsp_dict,
                         int32_t volcount);
 
 int32_t
-glusterd_mount_lvm_snapshot (glusterd_brickinfo_t *brickinfo,
-                             char *brick_mount_path);
-
-int32_t
 glusterd_umount (const char *path);
 
 int32_t

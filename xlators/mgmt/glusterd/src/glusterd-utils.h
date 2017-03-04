@@ -80,6 +80,10 @@ typedef struct glusterd_dict_ctx_ {
         char    *prefix;
 } glusterd_dict_ctx_t;
 
+
+gf_boolean_t
+glusterd_mntopts_exists (const char *str, const char *opts);
+
 int
 glusterd_compare_lines (const void *a, const void *b);
 

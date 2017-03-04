@@ -31,8 +31,8 @@
 */
 
 char *
-glusterd_lvm_snap_device_path (char *device, char *snapname,
-                                 int32_t brickcount)
+glusterd_lvm_snapshot_device (char *device, char *snapname,
+                              int32_t brickcount)
 {
         char        snap[PATH_MAX]      = "";
         char        msg[1024]           = "";
@@ -250,8 +250,8 @@ out:
    for glusterd
 */
 int32_t
-glusterd_lvm_take_snapshot (glusterd_brickinfo_t *brickinfo,
-                            char *origin_brick_path)
+glusterd_lvm_snapshot_create (glusterd_brickinfo_t *brickinfo,
+                              char *origin_brick_path)
 {
         char             msg[NAME_MAX]    = "";
         char             buf[PATH_MAX]    = "";
@@ -331,9 +331,9 @@ out:
 }
 
 int
-glusterd_lvm_get_brick_details (dict_t *rsp_dict,
-                               glusterd_brickinfo_t *brickinfo, char *volname,
-                                char *device, char *key_prefix)
+glusterd_lvm_brick_details (dict_t *rsp_dict,
+                            glusterd_brickinfo_t *brickinfo, char *volname,
+                            char *device, char *key_prefix)
 {
 
         int                     ret             =       -1;
@@ -499,8 +499,8 @@ out:
  */
 int
 glusterd_lvm_snapshot_restore_cleanup (dict_t *rsp_dict,
-                                   char *volname,
-                                   glusterd_snap_t *snap)
+                                       char *volname,
+                                       glusterd_snap_t *snap)
 {
         int                     ret                     = -1;
         xlator_t               *this                    = NULL;
@@ -848,3 +848,65 @@ out:
         gf_msg_trace (this->name, 0, "Returning %d", ret);
         return ret;
 }
+
+int32_t
+glusterd_lvm_snapshot_mount (glusterd_brickinfo_t *brickinfo,
+                             char *brick_mount_path)
+{
+        char               msg[NAME_MAX]  = "";
+        char               mnt_opts[1024] = "";
+        int32_t            ret            = -1;
+        runner_t           runner         = {0, };
+        xlator_t          *this           = NULL;
+
+        this = THIS;
+        GF_ASSERT (this);
+        GF_ASSERT (brick_mount_path);
+        GF_ASSERT (brickinfo);
+
+
+        runinit (&runner);
+        snprintf (msg, sizeof (msg), "mount %s %s",
+                  brickinfo->device_path, brick_mount_path);
+
+        strcpy (mnt_opts, brickinfo->mnt_opts);
+
+        /* XFS file-system does not allow to mount file-system with duplicate
+         * UUID. File-system UUID of snapshot and its origin volume is same.
+         * Therefore to mount such a snapshot in XFS we need to pass nouuid
+         * option
+         */
+        if (!strcmp (brickinfo->fstype, "xfs") &&
+            !glusterd_mntopts_exists (mnt_opts, "nouuid")) {
+                if (strlen (mnt_opts) > 0)
+                        strcat (mnt_opts, ",");
+                strcat (mnt_opts, "nouuid");
+        }
+
+
+        if (strlen (mnt_opts) > 0) {
+                runner_add_args (&runner, "mount", "-o", mnt_opts,
+                                brickinfo->device_path, brick_mount_path, NULL);
+        } else {
+                runner_add_args (&runner, "mount", brickinfo->device_path,
+                                 brick_mount_path, NULL);
+        }
+
+        runner_log (&runner, this->name, GF_LOG_DEBUG, msg);
+        ret = runner_run (&runner);
+        if (ret) {
+                gf_msg (this->name, GF_LOG_ERROR, 0,
+                        GD_MSG_SNAP_MOUNT_FAIL, "mounting the snapshot "
+                        "logical device %s failed (error: %s)",
+                        brickinfo->device_path, strerror (errno));
+                goto out;
+        } else
+                gf_msg_debug (this->name, 0, "mounting the snapshot "
+                        "logical device %s successful", brickinfo->device_path);
+
+out:
+        gf_msg_trace (this->name, 0, "Returning with %d", ret);
+        return ret;
+}
+
+

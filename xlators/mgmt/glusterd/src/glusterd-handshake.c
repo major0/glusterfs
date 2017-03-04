@@ -591,7 +591,7 @@ glusterd_create_missed_snap (glusterd_missed_snap_info *missed_snapinfo,
                 goto out;
         }
 
-        device = glusterd_lvm_snap_device_path (device, snap_vol->volname,
+        device = glusterd_lvm_snapshot_device (device, snap_vol->volname,
                                                   snap_opinfo->brick_num - 1);
         if (!device) {
                 gf_msg (this->name, GF_LOG_ERROR, ENXIO,
@@ -616,7 +616,7 @@ glusterd_create_missed_snap (glusterd_missed_snap_info *missed_snapinfo,
                  * the file-system type */
         }
 
-        ret = glusterd_lvm_take_snapshot (brickinfo, snap_opinfo->brick_path);
+        ret = glusterd_lvm_snapshot_create (brickinfo, snap_opinfo->brick_path);
         if (ret) {
                 gf_msg (this->name, GF_LOG_ERROR, 0,
                         GD_MSG_SNAPSHOT_OP_FAILED,
