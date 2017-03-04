@@ -11,6 +11,9 @@
 #ifndef GLUSTERD_LVM_SNAPSHOT_H
 #define GLUSTERD_LVM_SNAPSHOT_H
 
+gf_boolean_t
+glusterd_is_lvm_cmd_available (char *lvm_cmd);
+
 int
 glusterd_lvm_brick_details (dict_t *rsp_dict,
                             glusterd_brickinfo_t *brickinfo, char *volname,

@@ -8411,47 +8411,6 @@ out:
         return ret;
 }
 
-/*
-  Verify availability of lvm commands
-*/
-
-static gf_boolean_t
-glusterd_is_lvm_cmd_available (char *lvm_cmd)
-{
-        int32_t     ret  = 0;
-        struct stat buf  = {0,};
-
-        if (!lvm_cmd)
-                return _gf_false;
-
-        ret = sys_stat (lvm_cmd, &buf);
-        if (ret != 0) {
-                gf_msg (THIS->name, GF_LOG_ERROR, errno,
-                        GD_MSG_FILE_OP_FAILED,
-                        "stat fails on %s, exiting. (errno = %d (%s))",
-                        lvm_cmd, errno, strerror(errno));
-                return _gf_false;
-        }
-
-        if ((!ret) && (!S_ISREG(buf.st_mode))) {
-                gf_msg (THIS->name, GF_LOG_CRITICAL, EINVAL,
-                        GD_MSG_COMMAND_NOT_FOUND,
-                        "Provided command %s is not a regular file,"
-                        "exiting", lvm_cmd);
-                return _gf_false;
-        }
-
-        if ((!ret) && (!(buf.st_mode & S_IXUSR))) {
-                gf_msg (THIS->name, GF_LOG_CRITICAL, 0,
-                        GD_MSG_NO_EXEC_PERMS,
-                        "Provided command %s has no exec permissions,"
-                        "exiting", lvm_cmd);
-                return _gf_false;
-        }
-
-        return _gf_true;
-}
-
 int
 glusterd_handle_snapshot_fn (rpcsvc_request_t *req)
 {
