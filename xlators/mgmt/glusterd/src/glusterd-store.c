@@ -51,6 +51,10 @@
 #include "mntent_compat.h"
 #endif
 
+int32_t
+glusterd_snapshot_mount (glusterd_brickinfo_t *brickinfo,
+                         char *brick_mount_path);
+
 void
 glusterd_replace_slash_with_hyphen (char *str)
 {
@@ -3444,7 +3448,7 @@ glusterd_mount_brick_paths (char *brick_mount_path,
                         "Activating %s successful", brickinfo->device_path);
 
         /* Mount the snapshot */
-        ret = glusterd_lvm_snapshot_mount (brickinfo, brick_mount_path);
+        ret = glusterd_snapshot_mount (brickinfo, brick_mount_path);
         if (ret) {
                 gf_msg (this->name, GF_LOG_ERROR, 0,
                         GD_MSG_SNAP_MOUNT_FAIL,

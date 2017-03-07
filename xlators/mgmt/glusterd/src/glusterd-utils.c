@@ -96,6 +96,8 @@
 
 int
 send_attach_req (xlator_t *this, struct rpc_clnt *rpc, char *path, int op);
+int32_t
+glusterd_snapshot_remove (dict_t *rsp_dict, glusterd_volinfo_t *snap_vol);
 
 static gf_boolean_t
 is_brick_mx_enabled ()
@@ -4133,7 +4135,7 @@ glusterd_delete_stale_volume (glusterd_volinfo_t *stale_volinfo,
         if ((!gf_uuid_is_null (stale_volinfo->restored_from_snap)) &&
             (gf_uuid_compare (stale_volinfo->restored_from_snap,
                            valid_volinfo->restored_from_snap))) {
-                ret = glusterd_lvm_snapshot_remove (NULL, stale_volinfo);
+                ret = glusterd_snapshot_remove (NULL, stale_volinfo);
                 if (ret) {
                         gf_msg(this->name, GF_LOG_WARNING, 0,
                                 GD_MSG_SNAP_REMOVE_FAIL,

@@ -32,6 +32,9 @@
 #include "glusterd-errno.h"
 #include "glusterd-lvm-snapshot.h"
 
+int32_t
+glusterd_snapshot_remove (dict_t *rsp_dict, glusterd_volinfo_t *snap_vol);
+
 /*
  *  glusterd_snap_geo_rep_restore:
  *      This function restores the atime and mtime of marker.tstamp
@@ -1083,8 +1086,7 @@ glusterd_perform_missed_op (glusterd_snap_t *snap, int32_t op)
                          * volume's volinfo. If the volinfo is already restored
                          * then we should delete the backend LVMs */
                         if (!gf_uuid_is_null (volinfo->restored_from_snap)) {
-                                ret = glusterd_lvm_snapshot_remove (dict,
-                                                                    volinfo);
+                                ret = glusterd_snapshot_remove (dict, volinfo);
                                 if (ret) {
                                         gf_msg (this->name, GF_LOG_ERROR, 0,
                                                 GD_MSG_SNAP_REMOVE_FAIL,

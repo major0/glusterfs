@@ -27,19 +27,9 @@ int32_t
 glusterd_lvm_snapshot_create (glusterd_brickinfo_t *brickinfo,
                               char *origin_brick_path);
 
-int32_t
-glusterd_lvm_snapshot_mount (glusterd_brickinfo_t *brickinfo,
-                             char *brick_mount_path);
-
-int32_t
-glusterd_lvm_snapshot_remove (dict_t *rsp_dict, glusterd_volinfo_t *snap_vol);
-
 int
-glusterd_lvm_snapshot_restore (dict_t *dict, char **op_errstr, dict_t *rsp_dict);
-
-int
-glusterd_lvm_snapshot_restore_cleanup (dict_t *rsp_dict,
-                                       char *volname,
-                                       glusterd_snap_t *snap);
+glusterd_lvm_snapshot_remove (glusterd_volinfo_t *snap_vol,
+                              glusterd_brickinfo_t *brickinfo,
+                              const char *mount_pt, const char *snap_device);
 
 #endif /* GLUSTERD_LVM_SNAPSHOT_H */
