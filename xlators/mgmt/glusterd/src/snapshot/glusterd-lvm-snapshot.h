@@ -14,6 +14,9 @@
 gf_boolean_t
 glusterd_is_lvm_cmd_available (char *lvm_cmd);
 
+gf_boolean_t
+glusterd_is_lvm_brick (char *device, uint32_t *op_errno);
+
 int
 glusterd_lvm_brick_details (dict_t *rsp_dict,
                             glusterd_brickinfo_t *brickinfo, char *volname,

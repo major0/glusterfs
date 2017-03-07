@@ -65,6 +65,80 @@ glusterd_is_lvm_cmd_available (char *lvm_cmd)
 }
 
 
+/* This function will check whether the given device
+ * is a thinly provisioned LV or not.
+ *
+ * @param device        LV device path
+ *
+ * @return              _gf_true if LV is thin else _gf_false
+ */
+gf_boolean_t
+glusterd_is_lvm_brick (char *device, uint32_t *op_errno)
+{
+        int             ret                     = -1;
+        char            msg [1024]              = "";
+        char            pool_name [PATH_MAX]    = "";
+        char           *ptr                     = NULL;
+        xlator_t       *this                    = NULL;
+        runner_t        runner                  = {0,};
+        gf_boolean_t    is_thin                 = _gf_false;
+
+        this = THIS;
+
+        GF_VALIDATE_OR_GOTO ("glusterd", this, out);
+        GF_VALIDATE_OR_GOTO (this->name, device, out);
+        GF_VALIDATE_OR_GOTO (this->name, op_errno, out);
+
+        snprintf (msg, sizeof (msg), "Get thin pool name for device %s",
+                  device);
+
+        runinit (&runner);
+
+        runner_add_args (&runner, "/sbin/lvs", "--noheadings", "-o", "pool_lv",
+                         device, NULL);
+        runner_redir (&runner, STDOUT_FILENO, RUN_PIPE);
+        runner_log (&runner, this->name, GF_LOG_DEBUG, msg);
+
+        ret = runner_start (&runner);
+        if (ret == -1) {
+                gf_msg (this->name, GF_LOG_ERROR, errno,
+                        GD_MSG_TPOOL_GET_FAIL, "Failed to get thin pool "
+                        "name for device %s", device);
+                runner_end (&runner);
+                goto out;
+        }
+
+        ptr = fgets(pool_name, sizeof(pool_name),
+                    runner_chio (&runner, STDOUT_FILENO));
+        if (!ptr || !strlen(pool_name)) {
+                gf_msg (this->name, GF_LOG_ERROR, errno,
+                        GD_MSG_TPOOL_GET_FAIL, "Failed to get pool name "
+                        "for device %s", device);
+                runner_end (&runner);
+                ret = -1;
+                goto out;
+        }
+
+        runner_end (&runner);
+
+        /* Trim all the whitespaces. */
+        ptr = gf_trim (pool_name);
+
+        /* If the LV has thin pool associated with this
+         * then it is a thinly provisioned LV else it is
+         * regular LV */
+        if (0 != ptr [0]) {
+                is_thin = _gf_true;
+        }
+
+out:
+        if (!is_thin)
+                *op_errno = EG_NOTTHINP;
+
+        return is_thin;
+}
+
+
 /* This function is called to get the device path of the snap lvm. Usually
    if /dev/mapper/<group-name>-<lvm-name> is the device for the lvm,
    then the snap device will be /dev/<group-name>/<snapname>.
