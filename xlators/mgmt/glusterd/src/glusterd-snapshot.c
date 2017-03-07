@@ -8427,15 +8427,6 @@ glusterd_handle_snapshot_fn (rpcsvc_request_t *req)
                 goto out;
         }
 
-        if (!glusterd_is_lvm_cmd_available (LVM_CREATE)) {
-                snprintf (err_str, sizeof (err_str), "LVM commands not found,"
-                          " snapshot functionality is disabled");
-                gf_msg (this->name, GF_LOG_ERROR, 0,
-                        GD_MSG_COMMAND_NOT_FOUND, "%s", err_str);
-                ret = -1;
-                goto out;
-        }
-
         switch (type) {
         case GF_SNAP_OPTION_TYPE_CREATE:
                 ret = glusterd_handle_snapshot_create (req, cli_op, dict,

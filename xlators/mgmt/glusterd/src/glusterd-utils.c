@@ -144,6 +144,47 @@ out:
         return ret;
 }
 
+/*
+  Verify availability of a command
+*/
+
+gf_boolean_t
+glusterd_is_cmd_available (char *cmd)
+{
+        int32_t     ret  = 0;
+        struct stat buf  = {0,};
+
+        if (!cmd)
+                return _gf_false;
+
+        ret = sys_stat (cmd, &buf);
+        if (ret != 0) {
+                gf_msg (THIS->name, GF_LOG_ERROR, errno,
+                        GD_MSG_FILE_OP_FAILED,
+                        "stat fails on %s, exiting. (errno = %d (%s))",
+                        cmd, errno, strerror(errno));
+                return _gf_false;
+        }
+
+        if ((!ret) && (!S_ISREG(buf.st_mode))) {
+                gf_msg (THIS->name, GF_LOG_CRITICAL, EINVAL,
+                        GD_MSG_COMMAND_NOT_FOUND,
+                        "Provided command %s is not a regular file,"
+                        "exiting", cmd);
+                return _gf_false;
+        }
+
+        if ((!ret) && (!(buf.st_mode & S_IXUSR))) {
+                gf_msg (THIS->name, GF_LOG_CRITICAL, 0,
+                        GD_MSG_NO_EXEC_PERMS,
+                        "Provided command %s has no exec permissions,"
+                        "exiting", cmd);
+                return _gf_false;
+        }
+
+        return _gf_true;
+}
+
 /* FIXME this is generic enough that it might be better to place it into a
  * different source tree somewhere. */
 gf_boolean_t

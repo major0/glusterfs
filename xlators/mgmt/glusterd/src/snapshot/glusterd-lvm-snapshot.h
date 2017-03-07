@@ -12,9 +12,6 @@
 #define GLUSTERD_LVM_SNAPSHOT_H
 
 gf_boolean_t
-glusterd_is_lvm_cmd_available (char *lvm_cmd);
-
-gf_boolean_t
 glusterd_is_lvm_brick (char *device, uint32_t *op_errno);
 
 int

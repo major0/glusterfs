@@ -24,47 +24,6 @@
 #include "lvm-defaults.h"
 #include "glusterd-lvm-snapshot.h"
 
-/*
-  Verify availability of lvm commands
-*/
-gf_boolean_t
-glusterd_is_lvm_cmd_available (char *lvm_cmd)
-{
-        int32_t     ret  = 0;
-        struct stat buf  = {0,};
-
-        if (!lvm_cmd)
-                return _gf_false;
-
-        ret = sys_stat (lvm_cmd, &buf);
-        if (ret != 0) {
-                gf_msg (THIS->name, GF_LOG_ERROR, errno,
-                        GD_MSG_FILE_OP_FAILED,
-                        "stat fails on %s, exiting. (errno = %d (%s))",
-                        lvm_cmd, errno, strerror(errno));
-                return _gf_false;
-        }
-
-        if ((!ret) && (!S_ISREG(buf.st_mode))) {
-                gf_msg (THIS->name, GF_LOG_CRITICAL, EINVAL,
-                        GD_MSG_COMMAND_NOT_FOUND,
-                        "Provided command %s is not a regular file,"
-                        "exiting", lvm_cmd);
-                return _gf_false;
-        }
-
-        if ((!ret) && (!(buf.st_mode & S_IXUSR))) {
-                gf_msg (THIS->name, GF_LOG_CRITICAL, 0,
-                        GD_MSG_NO_EXEC_PERMS,
-                        "Provided command %s has no exec permissions,"
-                        "exiting", lvm_cmd);
-                return _gf_false;
-        }
-
-        return _gf_true;
-}
-
-
 /* This function will check whether the given device
  * is a thinly provisioned LV or not.
  *
@@ -91,6 +50,13 @@ glusterd_is_lvm_brick (char *device, uint32_t *op_errno)
 
         snprintf (msg, sizeof (msg), "Get thin pool name for device %s",
                   device);
+
+        if (!glusterd_is_cmd_available ("/sbin/lvs")) {
+                gf_msg (this->name, GF_LOG_ERROR, 0,
+                        GD_MSG_COMMAND_NOT_FOUND, "LVM commands not found");
+                ret = -1;
+                goto out;
+        }
 
         runinit (&runner);
 

@@ -82,6 +82,9 @@ typedef struct glusterd_dict_ctx_ {
 
 
 gf_boolean_t
+glusterd_is_cmd_available (char *cmd);
+
+gf_boolean_t
 glusterd_mntopts_exists (const char *str, const char *opts);
 
 int
