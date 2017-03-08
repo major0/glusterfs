@@ -12,7 +12,7 @@
 #define GLUSTERD_LVM_SNAPSHOT_H
 
 gf_boolean_t
-glusterd_is_lvm_brick (char *device, uint32_t *op_errno);
+glusterd_is_lvm_brick (char *brick_path);
 
 int
 glusterd_lvm_brick_details (dict_t *rsp_dict,

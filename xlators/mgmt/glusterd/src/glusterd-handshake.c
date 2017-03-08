@@ -592,8 +592,20 @@ glusterd_create_missed_snap (glusterd_missed_snap_info *missed_snapinfo,
                 goto out;
         }
 
-        snap_device = glusterd_lvm_snapshot_device (device, snap_vol->volname,
-                                                    snap_opinfo->brick_num - 1);
+	if (glusterd_is_lvm_brick (snap_opinfo->brick_path)) {
+		snap_device = glusterd_lvm_snapshot_device (device,
+							    snap_vol->volname,
+							    snap_opinfo->brick_num - 1);
+	} else {
+                gf_msg (this->name, GF_LOG_ERROR, ENXIO,
+                        GD_MSG_SNAP_DEVICE_NAME_GET_FAIL,
+                        "Incomplete snapshot on unsupported "
+			"volume (volname: %s, snapname: %s)",
+                         snap_vol->volname, snap->snapname);
+		ret = -1;
+		goto out;
+	}
+
         if (!snap_device) {
                 gf_msg (this->name, GF_LOG_ERROR, ENXIO,
                         GD_MSG_SNAP_DEVICE_NAME_GET_FAIL,
@@ -617,7 +629,17 @@ glusterd_create_missed_snap (glusterd_missed_snap_info *missed_snapinfo,
                  * the file-system type */
         }
 
-        ret = glusterd_lvm_snapshot_create (brickinfo, snap_opinfo->brick_path);
+	if (glusterd_is_lvm_brick (snap_opinfo->brick_path)) {
+		ret = glusterd_lvm_snapshot_create (brickinfo, snap_opinfo->brick_path);
+	} else {
+                gf_msg (this->name, GF_LOG_ERROR, 0,
+                        GD_MSG_SNAPSHOT_OP_FAILED,
+                        "Volume does not support snapshots (%s)",
+                        snap_opinfo->brick_path);
+		ret = -1;
+                goto out;
+	}
+
         if (ret) {
                 gf_msg (this->name, GF_LOG_ERROR, 0,
                         GD_MSG_SNAPSHOT_OP_FAILED,

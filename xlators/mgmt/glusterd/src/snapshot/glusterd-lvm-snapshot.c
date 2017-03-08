@@ -32,12 +32,13 @@
  * @return              _gf_true if LV is thin else _gf_false
  */
 gf_boolean_t
-glusterd_is_lvm_brick (char *device, uint32_t *op_errno)
+glusterd_is_lvm_brick (char *brick_path)
 {
         int             ret                     = -1;
         char            msg [1024]              = "";
         char            pool_name [PATH_MAX]    = "";
         char           *ptr                     = NULL;
+	char           *device			= NULL;
         xlator_t       *this                    = NULL;
         runner_t        runner                  = {0,};
         gf_boolean_t    is_thin                 = _gf_false;
@@ -45,11 +46,15 @@ glusterd_is_lvm_brick (char *device, uint32_t *op_errno)
         this = THIS;
 
         GF_VALIDATE_OR_GOTO ("glusterd", this, out);
-        GF_VALIDATE_OR_GOTO (this->name, device, out);
-        GF_VALIDATE_OR_GOTO (this->name, op_errno, out);
+        GF_VALIDATE_OR_GOTO (this->name, brick_path, out);
 
-        snprintf (msg, sizeof (msg), "Get thin pool name for device %s",
-                  device);
+	device = glusterd_get_brick_mount_device (brick_path);
+        if (!device) {
+                gf_msg (this->name, GF_LOG_ERROR, 0,
+                        GD_MSG_BRICK_GET_INFO_FAIL, "getting device name for "
+                        "the brick %s failed", brick_path);
+                goto out;
+        }
 
         if (!glusterd_is_cmd_available ("/sbin/lvs")) {
                 gf_msg (this->name, GF_LOG_ERROR, 0,
@@ -57,6 +62,9 @@ glusterd_is_lvm_brick (char *device, uint32_t *op_errno)
                 ret = -1;
                 goto out;
         }
+
+        snprintf (msg, sizeof (msg), "Get thin pool name for device %s",
+                  device);
 
         runinit (&runner);
 
@@ -98,8 +106,9 @@ glusterd_is_lvm_brick (char *device, uint32_t *op_errno)
         }
 
 out:
-        if (!is_thin)
-                *op_errno = EG_NOTTHINP;
+	if (device) {
+		GF_FREE(device);
+	}
 
         return is_thin;
 }
