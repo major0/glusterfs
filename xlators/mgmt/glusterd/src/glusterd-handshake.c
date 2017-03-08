@@ -515,6 +515,7 @@ glusterd_create_missed_snap (glusterd_missed_snap_info *missed_snapinfo,
                              glusterd_snap_op_t *snap_opinfo)
 {
         char                        *device           = NULL;
+        char                        *snap_device      = NULL;
         glusterd_conf_t             *priv             = NULL;
         glusterd_snap_t             *snap             = NULL;
         glusterd_volinfo_t          *snap_vol         = NULL;
@@ -591,9 +592,9 @@ glusterd_create_missed_snap (glusterd_missed_snap_info *missed_snapinfo,
                 goto out;
         }
 
-        device = glusterd_lvm_snapshot_device (device, snap_vol->volname,
-                                                  snap_opinfo->brick_num - 1);
-        if (!device) {
+        snap_device = glusterd_lvm_snapshot_device (device, snap_vol->volname,
+                                                    snap_opinfo->brick_num - 1);
+        if (!snap_device) {
                 gf_msg (this->name, GF_LOG_ERROR, ENXIO,
                         GD_MSG_SNAP_DEVICE_NAME_GET_FAIL,
                         "cannot copy the snapshot "
@@ -602,7 +603,7 @@ glusterd_create_missed_snap (glusterd_missed_snap_info *missed_snapinfo,
                 ret = -1;
                 goto out;
         }
-        strncpy (brickinfo->device_path, device,
+        strncpy (brickinfo->device_path, snap_device,
                  sizeof(brickinfo->device_path));
 
         /* Update the backend file-system type of snap brick in
@@ -676,6 +677,8 @@ glusterd_create_missed_snap (glusterd_missed_snap_info *missed_snapinfo,
 out:
         if (device)
                 GF_FREE (device);
+        if (snap_device)
+                GF_FREE (snap_device);
 
         return ret;
 }
