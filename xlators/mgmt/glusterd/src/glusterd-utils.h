@@ -687,9 +687,6 @@ int
 glusterd_update_mntopts (char *brick_path, glusterd_brickinfo_t *brickinfo);
 
 int
-glusterd_update_fs_label (glusterd_brickinfo_t *brickinfo);
-
-int
 glusterd_get_volopt_content (dict_t *dict, gf_boolean_t xml_out);
 
 int

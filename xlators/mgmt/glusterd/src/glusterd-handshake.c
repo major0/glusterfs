@@ -648,22 +648,6 @@ glusterd_create_missed_snap (glusterd_missed_snap_info *missed_snapinfo,
                 goto out;
         }
 
-        /* After the snapshot both the origin brick (LVM brick) and
-         * the snapshot brick will have the same file-system label. This
-         * will cause lot of problems at mount time. Therefore we must
-         * generate a new label for the snapshot brick
-         */
-        ret = glusterd_update_fs_label (brickinfo);
-        if (ret) {
-                gf_msg (this->name, GF_LOG_ERROR, 0,
-                        GD_MSG_BRICK_SET_INFO_FAIL, "Failed to update "
-                        "file-system label for %s brick", brickinfo->path);
-                /* Failing to update label should not cause snapshot failure.
-                 * Currently label is updated only for XFS and ext2/ext3/ext4
-                 * file-system.
-                 */
-        }
-
         /* Create and mount the snap brick */
         ret = glusterd_snap_brick_create (snap_vol, brickinfo,
                                           snap_opinfo->brick_num - 1, 0);
