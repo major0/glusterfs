@@ -4506,6 +4506,104 @@ out:
         gf_msg_trace (this->name, 0, "Returning with %d", ret);
         return ret;
 }
+
+int glusterd_snapshot_umount(glusterd_volinfo_t *snap_vol,
+		             glusterd_brickinfo_t *brickinfo,
+			     const char *mount_pt)
+{
+        int                     ret               = -1;
+        int                     retry_count       = 0;
+        glusterd_conf_t        *priv              = NULL;
+        char                    pidfile[PATH_MAX] = {0, };
+        pid_t                   pid               = -1;
+        gf_boolean_t            unmount           = _gf_true;
+	char                   *mnt_pt            = NULL;
+        xlator_t               *this              = NULL;
+
+        this = THIS;
+        GF_ASSERT (this);
+        priv = this->private;
+        GF_ASSERT (priv);
+        GF_ASSERT (mount_pt);
+	GF_ASSERT (brickinfo);
+	GF_ASSERT (snap_vol);
+
+        GLUSTERD_GET_BRICK_PIDFILE (pidfile, snap_vol, brickinfo, priv);
+        if (gf_is_service_running (pidfile, &pid)) {
+                int send_attach_req (xlator_t *this, struct rpc_clnt *rpc,
+                                     char *path, int op);
+                (void) send_attach_req (this, brickinfo->rpc,
+                                        brickinfo->path,
+                                        GLUSTERD_BRICK_TERMINATE);
+                brickinfo->status = GF_BRICK_STOPPED;
+        }
+
+        /* Check if the brick is mounted and then try unmounting the brick */
+        ret = glusterd_get_brick_root (brickinfo->path, &mnt_pt);
+        if (ret) {
+                gf_msg (this->name, GF_LOG_WARNING, 0,
+                        GD_MSG_BRICK_PATH_UNMOUNTED, "Getting the root "
+                        "of the brick for volume %s (snap %s) (device %s) "
+			"failed.", snap_vol->volname,
+			snap_vol->snapshot->snapname, brickinfo->device_path);
+                /* The brick path is already unmounted. Remove the lv only *
+                 * Need not fail the operation */
+                ret = 0;
+                unmount = _gf_false;
+        }
+
+        if ((unmount == _gf_true) && (strcmp (mnt_pt, mount_pt))) {
+                gf_msg (this->name, GF_LOG_WARNING, 0,
+                        GD_MSG_BRICK_PATH_UNMOUNTED,
+                        "Volume is not mounted for brick %s:%s "
+                        "device (%s).", brickinfo->hostname,
+                        brickinfo->path, brickinfo->device_path);
+                /* The brick path is already unmounted. Remove the lv only *
+                 * Need not fail the operation */
+                unmount = _gf_false;
+        }
+
+        /* umount cannot be done when the brick process is still in the process
+           of shutdown, so give three re-tries */
+        while ((unmount == _gf_true) && (retry_count < 3)) {
+                retry_count++;
+                /*umount2 system call doesn't cleanup mtab entry after un-mount.
+                  So use external umount command*/
+                ret = glusterd_umount(mount_pt);
+                if (!ret)
+                        break;
+
+                gf_msg_debug (this->name, 0, "umount failed for "
+                        "path %s (brick: %s): %s. Retry(%d)", mount_pt,
+                        brickinfo->path, strerror (errno), retry_count);
+
+                /*
+                 * This used to be one second, but that wasn't long enough
+                 * to get past the spurious EPERM errors that prevent some
+                 * tests (especially bug-1162462.t) from passing reliably.
+                 *
+                 * TBD: figure out where that garbage is coming from
+                 */
+                sleep (3);
+        }
+        if (ret) {
+                gf_msg (this->name, GF_LOG_ERROR, 0,
+                        GD_MSG_UNOUNT_FAILED, "umount failed for "
+                        "path %s (brick: %s): %s.", mount_pt,
+                        brickinfo->path, strerror (errno));
+                /*
+                 * This is cheating, but necessary until we figure out how to
+                 * shut down a brick within a still-living brick daemon so that
+                 * random translators aren't keeping the mountpoint alive.
+                 *
+                 * TBD: figure out a real solution
+                 */
+                ret = 0;
+        }
+
+	return ret;
+}
+
 int32_t
 glusterd_snap_brick_create (glusterd_volinfo_t *snap_volinfo,
                             glusterd_brickinfo_t *brickinfo,

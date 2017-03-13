@@ -24,6 +24,11 @@
 #include "lvm-defaults.h"
 #include "glusterd-lvm-snapshot.h"
 
+
+int glusterd_snapshot_umount(glusterd_volinfo_t *snap_vol,
+		             glusterd_brickinfo_t *brickinfo,
+			     const char *mount_pt);
+
 /* This function will update the file-system label of the
  * backend snapshot brick.
  *
@@ -535,19 +540,12 @@ glusterd_lvm_snapshot_remove (glusterd_volinfo_t *snap_vol,
 {
         int                     ret               = -1;
         xlator_t               *this              = NULL;
-        glusterd_conf_t        *priv              = NULL;
         runner_t                runner            = {0,};
         char                    msg[1024]         = {0, };
-        char                    pidfile[PATH_MAX] = {0, };
-        pid_t                   pid               = -1;
-        int                     retry_count       = 0;
         char                   *mnt_pt            = NULL;
-        gf_boolean_t            unmount           = _gf_true;
 
         this = THIS;
         GF_ASSERT (this);
-        priv = this->private;
-        GF_ASSERT (priv);
 
         if (!brickinfo) {
                 gf_msg (this->name, GF_LOG_ERROR, 0,
@@ -558,79 +556,10 @@ glusterd_lvm_snapshot_remove (glusterd_volinfo_t *snap_vol,
         GF_ASSERT (mount_pt);
         GF_ASSERT (snap_device);
 
-        GLUSTERD_GET_BRICK_PIDFILE (pidfile, snap_vol, brickinfo, priv);
-        if (gf_is_service_running (pidfile, &pid)) {
-                int send_attach_req (xlator_t *this, struct rpc_clnt *rpc,
-                                     char *path, int op);
-                (void) send_attach_req (this, brickinfo->rpc,
-                                        brickinfo->path,
-                                        GLUSTERD_BRICK_TERMINATE);
-                brickinfo->status = GF_BRICK_STOPPED;
-        }
-
-        /* Check if the brick is mounted and then try unmounting the brick */
-        ret = glusterd_get_brick_root (brickinfo->path, &mnt_pt);
-        if (ret) {
-                gf_msg (this->name, GF_LOG_WARNING, 0,
-                        GD_MSG_BRICK_PATH_UNMOUNTED, "Getting the root "
-                        "of the brick for volume %s (snap %s) failed. "
-                        "Removing lv (%s).", snap_vol->volname,
-                         snap_vol->snapshot->snapname, snap_device);
-                /* The brick path is already unmounted. Remove the lv only *
-                 * Need not fail the operation */
-                ret = 0;
-                unmount = _gf_false;
-        }
-
-        if ((unmount == _gf_true) && (strcmp (mnt_pt, mount_pt))) {
-                gf_msg (this->name, GF_LOG_WARNING, 0,
-                        GD_MSG_BRICK_PATH_UNMOUNTED,
-                        "Lvm is not mounted for brick %s:%s. "
-                        "Removing lv (%s).", brickinfo->hostname,
-                        brickinfo->path, snap_device);
-                /* The brick path is already unmounted. Remove the lv only *
-                 * Need not fail the operation */
-                unmount = _gf_false;
-        }
-
-        /* umount cannot be done when the brick process is still in the process
-           of shutdown, so give three re-tries */
-        while ((unmount == _gf_true) && (retry_count < 3)) {
-                retry_count++;
-                /*umount2 system call doesn't cleanup mtab entry after un-mount.
-                  So use external umount command*/
-                ret = glusterd_umount(mount_pt);
-                if (!ret)
-                        break;
-
-                gf_msg_debug (this->name, 0, "umount failed for "
-                        "path %s (brick: %s): %s. Retry(%d)", mount_pt,
-                        brickinfo->path, strerror (errno), retry_count);
-
-                /*
-                 * This used to be one second, but that wasn't long enough
-                 * to get past the spurious EPERM errors that prevent some
-                 * tests (especially bug-1162462.t) from passing reliably.
-                 *
-                 * TBD: figure out where that garbage is coming from
-                 */
-                sleep (3);
-        }
-        if (ret) {
-                gf_msg (this->name, GF_LOG_ERROR, 0,
-                        GD_MSG_UNOUNT_FAILED, "umount failed for "
-                        "path %s (brick: %s): %s.", mount_pt,
-                        brickinfo->path, strerror (errno));
-                /*
-                 * This is cheating, but necessary until we figure out how to
-                 * shut down a brick within a still-living brick daemon so that
-                 * random translators aren't keeping the mountpoint alive.
-                 *
-                 * TBD: figure out a real solution
-                 */
-                ret = 0;
-                goto out;
-        }
+	ret = glusterd_snapshot_umount(snap_vol, brickinfo, mount_pt);
+	if (ret) {
+		goto out;
+	}
 
         runinit (&runner);
         snprintf (msg, sizeof(msg), "remove snapshot of the brick %s:%s, "
