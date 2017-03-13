@@ -27,7 +27,12 @@ int32_t
 glusterd_lvm_snapshot_create (glusterd_brickinfo_t *brickinfo,
                               char *origin_brick_path);
 
-int
+int32_t
+glusterd_lvm_snapshot_missed (char *volname, char *snapname,
+		              glusterd_brickinfo_t *brickinfo,
+		              glusterd_snap_op_t *snap_opinfo);
+
+int32_t
 glusterd_lvm_snapshot_remove (glusterd_volinfo_t *snap_vol,
                               glusterd_brickinfo_t *brickinfo,
                               const char *mount_pt, const char *snap_device);

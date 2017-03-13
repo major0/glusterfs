@@ -25,9 +25,9 @@
 #include "glusterd-lvm-snapshot.h"
 
 
-int glusterd_snapshot_umount(glusterd_volinfo_t *snap_vol,
-		             glusterd_brickinfo_t *brickinfo,
-			     const char *mount_pt);
+int glusterd_snapshot_umount (glusterd_volinfo_t *snap_vol,
+		              glusterd_brickinfo_t *brickinfo,
+			      const char *mount_pt);
 
 /* This function will update the file-system label of the
  * backend snapshot brick.
@@ -531,6 +531,56 @@ out:
                 GF_FREE (device);
 
         return ret;
+}
+
+int32_t
+glusterd_lvm_snapshot_missed (char *volname, char *snapname,
+		              glusterd_brickinfo_t *brickinfo,
+		              glusterd_snap_op_t *snap_opinfo)
+{
+        int32_t                      ret              = -1;
+        xlator_t                    *this             = NULL;
+	char			    *device	      = NULL;
+	char			    *snap_device      = NULL;
+
+        /* Fetch the device path */
+        device = glusterd_get_brick_mount_device (snap_opinfo->brick_path);
+        if (!device) {
+                gf_msg (this->name, GF_LOG_ERROR, 0,
+                        GD_MSG_BRICK_GET_INFO_FAIL,
+                        "Getting device name for the"
+                        "brick %s:%s failed", brickinfo->hostname,
+                        snap_opinfo->brick_path);
+                ret = -1;
+                goto out;
+        }
+
+	snap_device = glusterd_lvm_snapshot_device (device, volname,
+							    snap_opinfo->brick_num - 1);
+        if (!snap_device) {
+                gf_msg (this->name, GF_LOG_ERROR, ENXIO,
+                        GD_MSG_SNAP_DEVICE_NAME_GET_FAIL,
+                        "cannot copy the snapshot "
+                        "device name (volname: %s, snapname: %s)",
+                         volname, snapname);
+                ret = -1;
+                goto out;
+        }
+        strncpy (brickinfo->device_path, snap_device,
+                 sizeof(brickinfo->device_path));
+
+
+	ret = glusterd_lvm_snapshot_create (brickinfo, snap_opinfo->brick_path);
+        if (ret) {
+                gf_msg (this->name, GF_LOG_ERROR, 0,
+                        GD_MSG_SNAPSHOT_OP_FAILED,
+                        "LVM snapshot failed for %s",
+                        snap_opinfo->brick_path);
+                goto out;
+        }
+
+out:
+	return ret;
 }
 
 int

@@ -580,44 +580,6 @@ glusterd_create_missed_snap (glusterd_missed_snap_info *missed_snapinfo,
                 goto out;
         }
 
-        /* Fetch the device path */
-        device = glusterd_get_brick_mount_device (snap_opinfo->brick_path);
-        if (!device) {
-                gf_msg (this->name, GF_LOG_ERROR, 0,
-                        GD_MSG_BRICK_GET_INFO_FAIL,
-                        "Getting device name for the"
-                        "brick %s:%s failed", brickinfo->hostname,
-                        snap_opinfo->brick_path);
-                ret = -1;
-                goto out;
-        }
-
-	if (glusterd_is_lvm_brick (snap_opinfo->brick_path)) {
-		snap_device = glusterd_lvm_snapshot_device (device,
-							    snap_vol->volname,
-							    snap_opinfo->brick_num - 1);
-	} else {
-                gf_msg (this->name, GF_LOG_ERROR, ENXIO,
-                        GD_MSG_SNAP_DEVICE_NAME_GET_FAIL,
-                        "Incomplete snapshot on unsupported "
-			"volume (volname: %s, snapname: %s)",
-                         snap_vol->volname, snap->snapname);
-		ret = -1;
-		goto out;
-	}
-
-        if (!snap_device) {
-                gf_msg (this->name, GF_LOG_ERROR, ENXIO,
-                        GD_MSG_SNAP_DEVICE_NAME_GET_FAIL,
-                        "cannot copy the snapshot "
-                        "device name (volname: %s, snapname: %s)",
-                         snap_vol->volname, snap->snapname);
-                ret = -1;
-                goto out;
-        }
-        strncpy (brickinfo->device_path, snap_device,
-                 sizeof(brickinfo->device_path));
-
         /* Update the backend file-system type of snap brick in
          * snap volinfo. */
         ret = glusterd_update_mntopts (snap_opinfo->brick_path, brickinfo);
@@ -630,7 +592,9 @@ glusterd_create_missed_snap (glusterd_missed_snap_info *missed_snapinfo,
         }
 
 	if (glusterd_is_lvm_brick (snap_opinfo->brick_path)) {
-		ret = glusterd_lvm_snapshot_create (brickinfo, snap_opinfo->brick_path);
+		ret = glusterd_lvm_snapshot_missed (snap_vol->volname,
+				                    snap->snapname,
+				                    brickinfo, snap_opinfo);
 	} else {
                 gf_msg (this->name, GF_LOG_ERROR, 0,
                         GD_MSG_SNAPSHOT_OP_FAILED,
