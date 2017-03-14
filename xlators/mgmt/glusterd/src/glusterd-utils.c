@@ -1412,13 +1412,14 @@ glusterd_validate_and_create_brickpath (glusterd_brickinfo_t *brickinfo,
                                         uuid_t volume_id, char **op_errstr,
                                         gf_boolean_t is_force)
 {
-        int          ret                 = -1;
-        char         parentdir[PATH_MAX] = {0,};
-        struct stat  parent_st           = {0,};
-        struct stat  brick_st            = {0,};
-        struct stat  root_st             = {0,};
-        char         msg[2048]           = {0,};
-        gf_boolean_t is_created          = _gf_false;
+        int             ret              = -1;
+	struct mntent  *mnt_ent          = NULL;
+	struct mntent   save_entry       = {0,};
+        struct stat     brick_st         = {0,};
+        struct stat     root_st          = {0,};
+        char            msg[2048]        = {0,};
+	char            buff[PATH_MAX]   = "";
+        gf_boolean_t    is_created       = _gf_false;
 
         ret = sys_mkdir (brickinfo->path, 0777);
         if (ret) {
@@ -1448,8 +1449,6 @@ glusterd_validate_and_create_brickpath (glusterd_brickinfo_t *brickinfo,
                 goto out;
         }
 
-        snprintf (parentdir, sizeof (parentdir), "%s/..", brickinfo->path);
-
         ret = sys_lstat ("/", &root_st);
         if (ret) {
                 snprintf (msg, sizeof (msg), "lstat failed on /. Reason : %s",
@@ -1457,15 +1456,11 @@ glusterd_validate_and_create_brickpath (glusterd_brickinfo_t *brickinfo,
                 goto out;
         }
 
-        ret = sys_lstat (parentdir, &parent_st);
-        if (ret) {
-                snprintf (msg, sizeof (msg), "lstat failed on %s. Reason : %s",
-                          parentdir, strerror (errno));
-                goto out;
-        }
-
         if (!is_force) {
-                if (brick_st.st_dev != parent_st.st_dev) {
+                mnt_ent = glusterd_get_mnt_entry_info (brickinfo->path, buff,
+				                     sizeof (buff),
+						     &save_entry);
+		if (mnt_ent) {
                         snprintf (msg, sizeof (msg), "The brick %s:%s is a "
                                   "mount point. Please create a sub-directory "
                                   "under the mount point and use that as the "
@@ -1476,7 +1471,7 @@ glusterd_validate_and_create_brickpath (glusterd_brickinfo_t *brickinfo,
                         ret = -1;
                         goto out;
                 }
-                else if (parent_st.st_dev == root_st.st_dev) {
+                else if (brick_st.st_dev == root_st.st_dev) {
                         snprintf (msg, sizeof (msg), "The brick %s:%s "
                                   "is being created in the root partition. It "
                                   "is recommended that you don't use the "
