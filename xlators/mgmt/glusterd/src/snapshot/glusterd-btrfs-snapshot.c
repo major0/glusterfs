@@ -18,10 +18,6 @@
 #include "dict.h"
 #include "run.h"
 
-int32_t
-glusterd_snapshot_mount (glusterd_brickinfo_t *brickinfo,
-		                         char *brick_mount_path);
-
 /* This function will check whether the given brick path uses btrfs.
  *
  * @param brick_path   brick path
@@ -79,11 +75,11 @@ out:
  * structure. To that end we are attempting to abuse the returned device_path
  * to act as a way to pass the snapname to glusterd_btrfs_snapshot_create()
  * which will find the real device_path from the origin_brick_path.
+ * NOTE: the device argument is ignored for BTRFS
  */
 
 char *
-glusterd_btrfs_snapshot_device (char *brick_path, char *snapname,
-                                int32_t brickcount)
+glusterd_btrfs_snapshot_device (char *device, char *snapname, int32_t brickcount)
 {
 	char        snap_dir[PATH_MAX]  = "";
 	char       *device_path         = NULL;
@@ -91,7 +87,6 @@ glusterd_btrfs_snapshot_device (char *brick_path, char *snapname,
 
         this = THIS;
         GF_ASSERT (this);
-        GF_ASSERT (brick_path);
 	GF_ASSERT (snapname);
 
 	snprintf(snap_dir, sizeof(snap_dir),
@@ -107,6 +102,51 @@ glusterd_btrfs_snapshot_device (char *brick_path, char *snapname,
         return device_path;
 }
 
+static char *
+glusterd_btrfs_mount(glusterd_brickinfo_t *brickinfo, char *subvol)
+{
+	int32_t      ret                         = -1;
+	char         btrfs_mnt_path[PATH_MAX]    = "";
+	char         mnt_opts[NAME_MAX]          = "";
+	char        *mnt_pt                      = "";
+	xlator_t    *this                        = NULL;
+
+	this = THIS;
+	GF_ASSERT(subvol);
+	GF_ASSERT(brickinfo);
+
+	snprintf (btrfs_mnt_path, sizeof (btrfs_mnt_path),
+		  GLUSTERD_VAR_RUN_DIR "/gluster/btrfs/%s", subvol);
+	ret = mkdir_p (btrfs_mnt_path, 0777, _gf_true);
+	if (ret) {
+		gf_msg (this->name, GF_LOG_ERROR, errno,
+			GD_MSG_DIR_OP_FAILED,
+			"creating the btrfs mount %s for "
+			" brick %s (subvol: %s) failed",
+			btrfs_mnt_path, brickinfo->path, subvol);
+		goto out;
+	}
+
+	/* We swapped the device_path out, so this should be viable */
+	strcpy(mnt_opts, brickinfo->mnt_opts);
+	strcpy(brickinfo->mnt_opts, "defaults");
+	ret = glusterd_snapshot_mount (brickinfo, btrfs_mnt_path);
+	if (ret) {
+		gf_msg (this->name, GF_LOG_ERROR, 0,
+			GD_MSG_LVM_MOUNT_FAILED,
+			"Failed to mount btrfs subvol (%s) to delete "
+			"snapshot (%s).", subvol, btrfs_mnt_path);
+		goto out;
+	}
+
+	mnt_pt = gf_strdup(btrfs_mnt_path);
+
+out:
+	strcpy(brickinfo->mnt_opts, mnt_opts);
+
+	return mnt_pt;
+}
+
 /* Call the 'btrfs' command to take the snapshot of the backend brick
  * filesystem. If this is successful, then call the glusterd_snap_create
  * function to create the snap object for glusterd
@@ -116,10 +156,10 @@ glusterd_btrfs_snapshot_create (glusterd_brickinfo_t *brickinfo,
                                 char *origin_brick_path)
 {
         char             msg[NAME_MAX]             = "";
-	char		 btrfs_mnt_path[PATH_MAX]  = "";
 	char             btrfs_snap_path[PATH_MAX] = "";
-	char            *device_path               = NULL;
 	char             subvol[NAME_MAX]          = "";
+	char            *device_path               = NULL;
+	char            *mnt_pt                    = NULL;
         int              ret                       = -1;
         runner_t         runner                    = {0,};
         xlator_t        *this                      = NULL;
@@ -141,48 +181,19 @@ glusterd_btrfs_snapshot_create (glusterd_brickinfo_t *brickinfo,
 		goto out;
 	}
 
-	/* In the long run we need to find another way to pull this off */
+	/* Copy the snapname from the device_path and then fix the device_path.
+	 * FIXME In the long run we need to find another way to pull this off
+	 */
 	strcpy(subvol, brickinfo->device_path);
 	strcpy(brickinfo->device_path, device_path);
-
-	/* Unlike LVM, we do not need a /dev/ path to perform our snapshot, all
-	 * we really need is find the device_path and mount it onto
-	 * 'run/gluster/btr/'. */
-	snprintf (btrfs_mnt_path, sizeof (btrfs_mnt_path),
-			GLUSTERD_VAR_RUN_DIR "/gluster/btrfs/%s",
-			subvol);
-
-	/* FIXME we should support some form of btrfs-subvol-prefix option here */
-	snprintf (btrfs_snap_path, sizeof (btrfs_snap_path), "%s/@%s",
-			btrfs_mnt_path, subvol);
-
-	ret = mkdir_p (btrfs_mnt_path, 0777, _gf_true);
-	if (ret) {
-		gf_msg (this->name, GF_LOG_ERROR, errno,
-			GD_MSG_DIR_OP_FAILED,
-			"creating the btrfs mount %s for "
-			" brick %s (device: %s) failed",
-			btrfs_mnt_path, brickinfo->path,
-			brickinfo->device_path );
+	mnt_pt = glusterd_btrfs_mount(brickinfo, subvol);
+	if (!mnt_pt)
 		goto out;
-	}
-
-	/* Clear the mnt_opts so we don't pick up a random subvolume */
-	strcpy(brickinfo->mnt_opts, "");
-
-	/* We swapped the device_path out, so this should be viable */
-	ret = glusterd_snapshot_mount (brickinfo, btrfs_mnt_path);
-	if (ret) {
-		gf_msg (this->name, GF_LOG_ERROR, 0,
-			GD_MSG_LVM_MOUNT_FAILED,
-			"Failed to mount btrfs device (%s) to snapshot "
-			" brick (%s).",
-			brickinfo->device_path, origin_brick_path);
-		goto out;
-	}
 
 	/* From here we can perform our snapshot against our origin_brick_path
 	 * to 'run/gluster/btr/<subvol>/@<subvol>'. */
+	snprintf (btrfs_snap_path, sizeof(btrfs_snap_path), "%s/@%s",
+			mnt_pt, subvol);
 
         /* Taking the actual snapshot */
         runinit (&runner);
@@ -198,9 +209,7 @@ glusterd_btrfs_snapshot_create (glusterd_brickinfo_t *brickinfo,
                         GD_MSG_SNAP_CREATION_FAIL,
 			"taking snapshot of the brick %s to %s "
 			"failed", origin_brick_path, brickinfo->device_path);
-		ret = glusterd_umount(btrfs_mnt_path);
-		if (!ret)
-			recursive_rmdir(btrfs_mnt_path);
+		glusterd_umount(mnt_pt, _gf_true);
 		ret = -1;
 		goto out;
         }
@@ -209,11 +218,11 @@ glusterd_btrfs_snapshot_create (glusterd_brickinfo_t *brickinfo,
 	snprintf (brickinfo->mnt_opts, sizeof (brickinfo->mnt_opts),
 			"default,subvol=@%s", subvol);
 
-	/* Cleanup */
-	ret = glusterd_umount(btrfs_mnt_path);
-	if (!ret)
-		recursive_rmdir(btrfs_mnt_path);
+	ret = glusterd_umount(mnt_pt, _gf_true);
 out:
+	if (mnt_pt)
+		GF_FREE(mnt_pt);
+
         return ret;
 }
 
@@ -224,23 +233,10 @@ glusterd_btrfs_snapshot_missed (char *volname, char *snapname,
 {
         int32_t                      ret              = -1;
         xlator_t                    *this             = NULL;
-	char			    *device	      = NULL;
 	char			    *snap_device      = NULL;
 
-        /* Fetch the device path */
-        device = glusterd_get_brick_mount_device (snap_opinfo->brick_path);
-        if (!device) {
-                gf_msg (this->name, GF_LOG_ERROR, 0,
-                        GD_MSG_BRICK_GET_INFO_FAIL,
-                        "Getting device name for the"
-                        "brick %s:%s failed", brickinfo->hostname,
-                        snap_opinfo->brick_path);
-                ret = -1;
-                goto out;
-        }
-
-	snap_device = glusterd_btrfs_snapshot_device (device, volname,
-						      snap_opinfo->brick_num - 1);
+	snap_device = glusterd_btrfs_snapshot_device (NULL, volname,
+			                          snap_opinfo->brick_num - 1);
         if (!snap_device) {
                 gf_msg (this->name, GF_LOG_ERROR, ENXIO,
                         GD_MSG_SNAP_DEVICE_NAME_GET_FAIL,
@@ -252,7 +248,6 @@ glusterd_btrfs_snapshot_missed (char *volname, char *snapname,
         }
         strncpy (brickinfo->device_path, snap_device,
                  sizeof(brickinfo->device_path));
-
 
 	ret = glusterd_btrfs_snapshot_create (brickinfo, snap_opinfo->brick_path);
         if (ret) {
@@ -268,7 +263,7 @@ out:
 }
 
 
-int
+int32_t
 glusterd_btrfs_brick_details (dict_t *rsp_dict,
                               glusterd_brickinfo_t *brickinfo, char *volname,
                               char *device, char *key_prefix)
@@ -289,7 +284,7 @@ glusterd_btrfs_brick_details (dict_t *rsp_dict,
 }
 
 
-int
+int32_t
 glusterd_btrfs_snapshot_remove (glusterd_volinfo_t *snap_vol,
                                 glusterd_brickinfo_t *brickinfo,
                                 const char *mount_pt, const char *snap_device)
@@ -299,12 +294,7 @@ glusterd_btrfs_snapshot_remove (glusterd_volinfo_t *snap_vol,
         glusterd_conf_t        *priv                      = NULL;
         runner_t                runner                    = {0,};
         char                    msg[1024]                 = {0, };
-        char                    pidfile[PATH_MAX]         = {0, };
-        pid_t                   pid                       = -1;
         char                   *mnt_pt                    = NULL;
-	gf_boolean_t		unmount			  = _gf_true;
-	int			retry_count		  = 0;
-	char		        btrfs_mnt_path[PATH_MAX]  = "";
 	char                    btrfs_snap_path[PATH_MAX] = "";
 	char		        mnt_opts[NAME_MAX]	  = "";
 	char                   *subvol                    = NULL;
@@ -315,92 +305,10 @@ glusterd_btrfs_snapshot_remove (glusterd_volinfo_t *snap_vol,
         priv = this->private;
         GF_ASSERT (priv);
 
-	/* FIXME: begin copy/paste from glusterd_lvm_snapshot_remove() */
-
-	if (!brickinfo) {
-                gf_msg (this->name, GF_LOG_ERROR, 0,
-                        GD_MSG_INVALID_ENTRY, "brickinfo NULL");
-                goto out;
-        }
-        GF_ASSERT (snap_vol);
-        GF_ASSERT (mount_pt);
-        GF_ASSERT (snap_device);
-
-        GLUSTERD_GET_BRICK_PIDFILE (pidfile, snap_vol, brickinfo, priv);
-        if (gf_is_service_running (pidfile, &pid)) {
-                int send_attach_req (xlator_t *this, struct rpc_clnt *rpc,
-                                     char *path, int op);
-                (void) send_attach_req (this, brickinfo->rpc,
-                                        brickinfo->path,
-                                        GLUSTERD_BRICK_TERMINATE);
-                brickinfo->status = GF_BRICK_STOPPED;
-        }
-
-        /* Check if the brick is mounted and then try unmounting the brick */
-        ret = glusterd_get_brick_root (brickinfo->path, &mnt_pt);
-        if (ret) {
-                gf_msg (this->name, GF_LOG_WARNING, 0,
-                        GD_MSG_BRICK_PATH_UNMOUNTED, "Getting the root "
-                        "of the brick for volume %s (snap %s) failed. "
-                        "Removing subvolume (%s).", snap_vol->volname,
-                         snap_vol->snapshot->snapname, snap_device);
-		/* The brick path is already unmounted. Remove the subvolume
-		 * only * Need not fail the operation */
-                ret = 0;
-                unmount = _gf_false;
-        }
-
-        if ((unmount == _gf_true) && (strcmp (mnt_pt, mount_pt))) {
-                gf_msg (this->name, GF_LOG_WARNING, 0,
-                        GD_MSG_BRICK_PATH_UNMOUNTED,
-                        "Subvolume is not mounted for brick %s:%s. "
-                        "Removing subvolume (%s).", brickinfo->hostname,
-                        brickinfo->path, snap_device);
-		/* The brick path is already unmounted. Remove the subvolume
-		 * only. Need not fail the operation */
-		unmount = _gf_false;
-        }
-
-        /* umount cannot be done when the brick process is still in the process
-           of shutdown, so give three re-tries */
-        while ((unmount == _gf_true) && (retry_count < 3)) {
-                retry_count++;
-                /*umount2 system call doesn't cleanup mtab entry after un-mount.
-                  So use external umount command*/
-                ret = glusterd_umount(mount_pt);
-                if (!ret)
-                        break;
-
-                gf_msg_debug (this->name, 0, "umount failed for "
-                        "path %s (brick: %s): %s. Retry(%d)", mount_pt,
-                        brickinfo->path, strerror (errno), retry_count);
-
-                /*
-                 * This used to be one second, but that wasn't long enough
-                 * to get past the spurious EPERM errors that prevent some
-                 * tests (especially bug-1162462.t) from passing reliably.
-                 *
-                 * TBD: figure out where that garbage is coming from
-                 */
-                sleep (3);
-        }
-        if (ret) {
-                gf_msg (this->name, GF_LOG_ERROR, 0,
-                        GD_MSG_UNOUNT_FAILED, "umount failed for "
-                        "path %s (brick: %s): %s.", mount_pt,
-                        brickinfo->path, strerror (errno));
-                /*
-                 * This is cheating, but necessary until we figure out how to
-                 * shut down a brick within a still-living brick daemon so that
-                 * random translators aren't keeping the mountpoint alive.
-                 *
-                 * TBD: figure out a real solution
-                 */
-                ret = 0;
-                goto out;
-        }
-
-	/* FIXME end copy/paste from glusterd_lvm_snapshot_remove() */
+	ret = glusterd_snapshot_umount(snap_vol, brickinfo, mount_pt);
+	if (ret) {
+		goto out;
+	}
 
 	/* The brickcount from glusterd_btrfs_snapshot_create() is not
 	 * available to us at this point, so we need to parse it from the
@@ -426,35 +334,14 @@ glusterd_btrfs_snapshot_remove (glusterd_volinfo_t *snap_vol,
 		goto out;
 	}
 
-	snprintf (btrfs_mnt_path, sizeof (btrfs_mnt_path),
-			GLUSTERD_VAR_RUN_DIR "/gluster/btrfs/%s", subvol);
-
-	snprintf (btrfs_snap_path, sizeof (btrfs_snap_path), "%s/@%s",
-			btrfs_mnt_path, subvol);
-
-	ret = mkdir_p (btrfs_mnt_path, 0777, _gf_true);
-	if (ret) {
-		gf_msg (this->name, GF_LOG_ERROR, errno,
-			GD_MSG_DIR_OP_FAILED,
-			"creating the btrfs mount %s for "
-			" brick %s (subvol: %s) failed",
-			btrfs_mnt_path, brickinfo->path, subvol);
+	/* mount the root device so we can manage subvolumes */
+	mnt_pt = glusterd_btrfs_mount(brickinfo, subvol);
+	if(!mnt_pt)
 		goto out;
-	}
-
-	/* We swapped the device_path out, so this should be viable */
-	strcpy(mnt_opts, brickinfo->mnt_opts);
-	strcpy(brickinfo->mnt_opts, "defaults");
-	ret = glusterd_snapshot_mount (brickinfo, btrfs_mnt_path);
-	if (ret) {
-		gf_msg (this->name, GF_LOG_ERROR, 0,
-			GD_MSG_LVM_MOUNT_FAILED,
-			"Failed to mount btrfs subvol (%s) to delete "
-			"snapshot (%s).", subvol, btrfs_mnt_path);
-		goto out;
-	}
 
         runinit (&runner);
+	snprintf (btrfs_snap_path, sizeof (btrfs_snap_path), "%s/@%s",
+			mnt_pt, subvol);
         snprintf (msg, sizeof(msg), "remove snapshot of the brick %s:%s, "
                   "subvol: %s", brickinfo->hostname, brickinfo->path,
                   subvol);
@@ -468,16 +355,12 @@ glusterd_btrfs_snapshot_remove (glusterd_volinfo_t *snap_vol,
                         GD_MSG_SNAP_REMOVE_FAIL, "removing snapshot of the "
                         "brick (%s:%s) of subvol %s failed",
                         brickinfo->hostname, brickinfo->path, subvol);
-		ret = glusterd_umount(btrfs_mnt_path);
-		if (!ret)
-			recursive_rmdir(btrfs_mnt_path);
+		glusterd_umount(mnt_pt, _gf_true);
 		ret = -1;
                 goto out;
         }
 
-	ret = glusterd_umount(btrfs_mnt_path);
-	if (!ret)
-		recursive_rmdir(btrfs_mnt_path);
+	ret = glusterd_umount(mnt_pt, _gf_true);
 
 out:
         if (mnt_pt)
