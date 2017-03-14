@@ -69,7 +69,7 @@ gd_restore_snap_volume (dict_t *dict, dict_t *rsp_dict,
                         int32_t volcount);
 
 int32_t
-glusterd_umount (const char *path);
+glusterd_umount (const char *path, gf_boolean_t remove);
 
 int32_t
 glusterd_add_snapshots_to_export_dict (dict_t *peer_data);

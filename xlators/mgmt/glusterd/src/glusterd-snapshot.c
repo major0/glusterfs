@@ -4569,7 +4569,7 @@ int glusterd_snapshot_umount(glusterd_volinfo_t *snap_vol,
                 retry_count++;
                 /*umount2 system call doesn't cleanup mtab entry after un-mount.
                   So use external umount command*/
-                ret = glusterd_umount(mount_pt);
+                ret = glusterd_umount(mount_pt, _gf_false);
                 if (!ret)
                         break;
 
@@ -4686,7 +4686,7 @@ out:
                         " mount %s", snap_brick_mount_path);
                 /*umount2 system call doesn't cleanup mtab entry after un-mount.
                   So use external umount command*/
-                glusterd_umount (snap_brick_mount_path);
+                glusterd_umount (snap_brick_mount_path, _gf_false);
         }
 
         gf_msg_trace (this->name, 0, "Returning %d", ret);

@@ -3249,7 +3249,7 @@ out:
 }
 
 int32_t
-glusterd_umount (const char *path)
+glusterd_umount (const char *path, gf_boolean_t remove)
 {
         char               msg[NAME_MAX] = "";
         int32_t            ret           = -1;
@@ -3265,12 +3265,25 @@ glusterd_umount (const char *path)
         runner_add_args (&runner, _PATH_UMOUNT, "-f", path, NULL);
         runner_log (&runner, this->name, GF_LOG_DEBUG, msg);
         ret = runner_run (&runner);
-        if (ret)
+        if (ret) {
                 gf_msg (this->name, GF_LOG_ERROR, errno,
                         GD_MSG_GLUSTERD_UMOUNT_FAIL, "umounting %s failed (%s)",
                         path, strerror (errno));
+		goto out;
+	}
 
+	if (remove != _gf_true)
+		goto out;
+
+	ret = recursive_rmdir(path);
+	if (ret)
+                gf_msg (this->name, GF_LOG_ERROR, 0,
+                        GD_MSG_DIR_OP_FAILED,
+			"removing %s failed", path);
+
+out:
         gf_msg_trace (this->name, 0, "Returning with %d", ret);
+
         return ret;
 }
 
