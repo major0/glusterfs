@@ -1,0 +1,24 @@
+glusterfs_server_package_info:
+  pkg_mgr: yum
+  args:
+    pkg: "{{ item }}"
+    state: latest
+    update_cache: yes
+  pre_pkgs:
+    - libselinux-python
+    - libsemanage-python
+    - samba4*
+  del_pkgs:
+    - glusterfs-server
+    - glusterfs-client
+
+glusterfs_server_repo_info:
+  pkg_repo: yum
+  args:
+    name: "{{ item }}"
+    state: present
+  repos:
+    - http://download.fedoraproject.org/pub/epel/6/x86_64/epel-release-6-8.noarch.rpm
+
+glusterfs_server_disabled_services:
+  - nfs

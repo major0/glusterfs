@@ -1,0 +1,62 @@
+# playbook based on Mark Stillwell's multi-deployment pattern
+# see: http://blog.stillwell.me/blog/2015/06/09/multi-environment-deployments-with-ansible/
+---
+- set_fact:
+  ansible_distro: "{{ ansible_distribution|lower|replace('\"', '') }}"
+
+- name: gather os specific variables
+  include_vars: "{{ item }}"
+  with_first_found:
+    - files:
+      - "{{ ansible_distro }}-{{ ansible_distribution_version|lower|replace('/', '_') }}.yml"
+      - "{{ ansible_distro }}-{{ ansible_distribution_release }}.yml"
+      - "{{ ansible_distro }}-{{ ansible_distribution_major_version|lower|replace('/', '_') }}.yml"
+      - "{{ ansible_distro }}.yml"
+      - "{{ ansible_os_family|lower }}.yml"
+      - defaults.yml
+    paths:
+      - ../vars
+
+- name: install pre-requisite packages
+  action: "{{ glusterfs_server_package_info.pkg_mgr }}"
+  args: glusterfs_server_package_info.args
+  with_items: glusterfs_server_package_info.pre_pkgs
+  when: glusterfs_server_package_info.pre_pkgs|length > 0
+
+- name: remove existing gluster packages
+  action: "{{ glusterfs_server_package_info.pkg_mgr }}"
+  args: glusterfs_server_package_info.args
+  with_items: glusterfs_server_package_info.del_pkgs
+  when: glusterfs_server_package_info.del_pkgs|length > 0
+
+- name: enable services
+  service:
+    name: "{{ item }}"
+    state: started
+    enabled: yes
+  with_items: glusterfs_server_enabled_services
+  when: glusterfs_server_enabled_services|length > 0
+
+- name: disable services
+  service:
+    name: "{{ item }}"
+    state: stopped
+    enabled: no
+  with_items: glusterfs_server_disable_services
+  when: glusterfs_server_disable_services|length > 0
+
+
+- include: "{{ item }}"
+  with_first_found:
+  - files:
+    - "{{ ansible_distro }}-{{ ansible_distribution_version|lower|replace('/', '_') }}.yml"
+    - "{{ ansible_distro }}-{{ ansible_distribution_release }}.yml"
+    - "{{ ansible_distro }}-{{ ansible_distribution_major_version|lower|replace('/', '_') }}.yml"
+    - "{{ ansible_distro }}.yml"
+    - "{{ ansible_os_family|lower }}.yml"
+    skip: true
+
+- include: install-pkgs.yml # FIXME this still has some issues
+- include: prepare-brick.yml
+- include: iptables.yml
+- include: fix-localhost.yml
