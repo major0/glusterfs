@@ -18,14 +18,16 @@
       - ../vars
 
 - name: install pre-requisite packages
-  action: "{{ glusterfs_server_package_info.pkg_mgr }}"
-  args: glusterfs_server_package_info.args
+  package:
+    name: "{{ item }}"
+    state: latest
   with_items: glusterfs_server_package_info.pre_pkgs
   when: glusterfs_server_package_info.pre_pkgs|length > 0
 
 - name: remove existing gluster packages
-  action: "{{ glusterfs_server_package_info.pkg_mgr }}"
-  args: glusterfs_server_package_info.args
+  package:
+    name: "{{ item }}"
+    state: absent
   with_items: glusterfs_server_package_info.del_pkgs
   when: glusterfs_server_package_info.del_pkgs|length > 0
 
