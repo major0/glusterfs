@@ -10,7 +10,7 @@ Vagrant.configure("2") do |config|
 	else
 	  os_name = 'fedora'
           testvm.vm.box = "gluster-dev-fedora"
-          testvm.vm.box_url = "http://download.gluster.org/pub/gluster/glusterfs/vagrant/gluster-dev-fedora/boxes/gluster-dev-fedora.json"
+          testvm.vm.box_url = "https://download.gluster.org/pub/gluster/glusterfs/vagrant/gluster-dev-fedora/boxes/gluster-dev-fedora.json"
 	end
       end
       testvm.vm.hostname = "vagrant-testVM"
