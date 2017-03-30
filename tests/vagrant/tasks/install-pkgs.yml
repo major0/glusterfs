@@ -1,3 +1,4 @@
+# FIXME this list is not universal between OS's and Vendors..
 - name: ensure glusterfs-server package dependancies are installed
   action: "{{ glusterfs_server_package_info.pkg_mgr }}"
   args: glusterfs_server_package_info.args

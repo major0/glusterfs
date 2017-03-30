@@ -48,6 +48,7 @@
   when: glusterfs_server_disable_services|length > 0
 
 
+# OS/Vendor specific tweaks
 - include: "{{ item }}"
   with_first_found:
   - files:
@@ -58,7 +59,28 @@
     - "{{ ansible_os_family|lower }}.yml"
     skip: true
 
+# FIXME is this really necessary?
+- name: remove IPv6 address for localhost
+  - lineinfile:
+      path: /etc/hosts
+      state: absent
+      regexp: '^::1'
+
+- name: add IPv4 address for localhost
+  - lineinfile:
+      path: /etc/hosts
+      regexp: '^127.0.0.1\s'
+      line: '127.0.0.1 localhost'
+
+- name: disable iptables, need to add specific rules later
+  shell: iptables -F
+
+# FIXME clean this up to suport xfs, btrfs, zfs
+- name: Format backend
+  filesystem: fstype=xfs dev=/dev/vdb
+
+- name: Add entry to fstab and mount
+  mount: name=/d src=/dev/vdb fstype=xfs state=mounted
+
 - include: install-pkgs.yml # FIXME this still has some issues
-- include: prepare-brick.yml
-- include: iptables.yml
-- include: fix-localhost.yml
+#- include: install-dev.yml # Optional?
