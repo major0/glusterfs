@@ -1,6 +1,12 @@
 ---
 - name: remove IPv6 address for localhost
-  shell: sed -i '/::1/d' /etc/hosts
+  - lineinfile:
+      path: /etc/hosts
+      state: absent
+      regexp: '^::1'
 
 - name: add IPv4 address for localhost
-  shell: sed -i '/127.0.0.1/s/$/ localhost/' /etc/hosts
+  - lineinfile:
+      path: /etc/hosts
+      regexp: '^127.0.0.1\s'
+      line: '127.0.0.1 localhost'
