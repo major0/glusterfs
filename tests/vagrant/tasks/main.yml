@@ -2,7 +2,7 @@
 # see: http://blog.stillwell.me/blog/2015/06/09/multi-environment-deployments-with-ansible/
 ---
 - set_fact:
-  ansible_distro: "{{ ansible_distribution|lower|replace('\"', '') }}"
+    ansible_distro: "{{ ansible_distribution|lower|replace('\"', '') }}"
 
 - name: gather os specific variables
   include_vars: "{{ item }}"
