@@ -1,9 +1,4 @@
 glusterfs_server_package_info:
-  pkg_mgr: dnf
-  args:
-    pkg: "{{ item }}"
-    state: latest
-    update_cache: yes
   pre_pkgs:
     - libcmocka-devel
     - cifs-utils
@@ -13,8 +8,8 @@ glusterfs_server_package_info:
     - procps-ng
     - samba*
   del_pkgs:
-    - glusterfs-server
-    - glusterfs-client
+    - glusterfs*
 
-glusterfs_server_disabled_services:
-  - nfs-server
+glusterfs_server_services:
+  disabled:
+    - nfs-server

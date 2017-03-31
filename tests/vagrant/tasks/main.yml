@@ -8,14 +8,31 @@
   include_vars: "{{ item }}"
   with_first_found:
     - files:
-      - "{{ ansible_distro }}-{{ ansible_distribution_version|lower|replace('/', '_') }}.yml"
-      - "{{ ansible_distro }}-{{ ansible_distribution_release }}.yml"
-      - "{{ ansible_distro }}-{{ ansible_distribution_major_version|lower|replace('/', '_') }}.yml"
-      - "{{ ansible_distro }}.yml"
-      - "{{ ansible_os_family|lower }}.yml"
-      - defaults.yml
-    paths:
-      - ../vars
+        - "{{ ansible_distro }}-{{ ansible_distribution_version|lower|replace('/', '_') }}.yml"
+        - "{{ ansible_distro }}-{{ ansible_distribution_release }}.yml"
+        - "{{ ansible_distro }}-{{ ansible_distribution_major_version|lower|replace('/', '_') }}.yml"
+        - "{{ ansible_distro }}.yml"
+        - "{{ ansible_os_family|lower }}.yml"
+        - defaults.yml
+      paths:
+        - ../vars
+
+- name: update installed packages
+  package: name=* state=latest
+
+- name: remove IPv6 address for localhost
+  lineinfile: dest=/etc/hosts regexp='^::1' state=absent
+
+# FIXME is this really necessary?
+- name: add IPv4 address for localhost
+  lineinfile: dest=/etc/hosts regexp='^127.0.0.1\s' line='127.0.0.1 localhost'
+
+- name: remove any existing gluster packages
+  package:
+    name: "{{ item }}"
+    state: absent
+  with_items: glusterfs_server_package_info.del_pkgs
+  when: glusterfs_server_package_info.del_pkgs|length > 0
 
 - name: install pre-requisite packages
   package:
@@ -24,56 +41,24 @@
   with_items: glusterfs_server_package_info.pre_pkgs
   when: glusterfs_server_package_info.pre_pkgs|length > 0
 
-- name: remove existing gluster packages
-  package:
-    name: "{{ item }}"
-    state: absent
-  with_items: glusterfs_server_package_info.del_pkgs
-  when: glusterfs_server_package_info.del_pkgs|length > 0
-
-- name: enable services
-  service:
-    name: "{{ item }}"
-    state: started
-    enabled: yes
-  with_items: glusterfs_server_enabled_services
-  when: glusterfs_server_enabled_services|length > 0
+- name: os/vendor tweaks/packages
+  include: "{{ item }}"
+  with_first_found:
+    - files:
+      - "{{ ansible_distro }}-{{ ansible_distribution_version|lower|replace('/', '_') }}.yml"
+      - "{{ ansible_distro }}-{{ ansible_distribution_release }}.yml"
+      - "{{ ansible_distro }}-{{ ansible_distribution_major_version|lower|replace('/', '_') }}.yml"
+      - "{{ ansible_distro }}.yml"
+      - "{{ ansible_os_family|lower }}.yml"
+      skip: true
 
 - name: disable services
   service:
     name: "{{ item }}"
     state: stopped
     enabled: no
-  with_items: glusterfs_server_disable_services
-  when: glusterfs_server_disable_services|length > 0
-
-
-# OS/Vendor specific tweaks
-- include: "{{ item }}"
-  with_first_found:
-  - files:
-    - "{{ ansible_distro }}-{{ ansible_distribution_version|lower|replace('/', '_') }}.yml"
-    - "{{ ansible_distro }}-{{ ansible_distribution_release }}.yml"
-    - "{{ ansible_distro }}-{{ ansible_distribution_major_version|lower|replace('/', '_') }}.yml"
-    - "{{ ansible_distro }}.yml"
-    - "{{ ansible_os_family|lower }}.yml"
-    skip: true
-
-# FIXME is this really necessary?
-- name: remove IPv6 address for localhost
-  - lineinfile:
-      path: /etc/hosts
-      state: absent
-      regexp: '^::1'
-
-- name: add IPv4 address for localhost
-  - lineinfile:
-      path: /etc/hosts
-      regexp: '^127.0.0.1\s'
-      line: '127.0.0.1 localhost'
-
-- name: disable iptables, need to add specific rules later
-  shell: iptables -F
+  with_items: glusterfs_server_services.disabled
+  when: glusterfs_server_services.disabled|length > 0
 
 # FIXME clean this up to suport xfs, btrfs, zfs
 - name: Format backend
@@ -81,6 +66,3 @@
 
 - name: Add entry to fstab and mount
   mount: name=/d src=/dev/vdb fstype=xfs state=mounted
-
-- include: install-pkgs.yml # FIXME this still has some issues
-#- include: install-dev.yml # Optional?

@@ -1,2 +1,81 @@
+---
+- name: Add mock group; required for mock user
+  group: name=mock
+
 - name: Add mock user; required for rpm.t
   user: name=mock group=mock
+
+- name: ensure glusterfs-server package dependancies are installed
+  package:
+    name: "{{ item }}"
+    state: latest
+  with_items:
+    - attr
+    - autoconf
+    - automake
+    - bison
+    - dbench
+    - dos2unix
+    - e2fsprogs
+    - findutils
+    - flex
+    - fuse-devel
+    - fuse-libs
+    - gcc
+    - gdb
+    - git
+    - glib2-devel
+    - libacl-devel
+    - libaio-devel
+    - libattr-devel
+    - libibverbs-devel
+    - librdmacm-devel
+    - libtool
+    - libxml2-devel
+    - lvm2-devel
+    - make
+    - mock
+    - net-tools
+    - nfs-utils
+    - openssh-server
+    - openssl-devel
+    - perl-Test-Harness
+    - pkgconfig
+    - psmisc
+    - python-devel
+    - python-eventlet
+    - python-netifaces
+    - python-paste-deploy
+    - python-setuptools
+    - python-simplejson
+    - python-sphinx
+    - python-webob
+    - pyxattr
+    - readline-devel
+    - rpm-build
+    - screen
+    - strace
+    - supervisor
+    - systemtap-sdt-devel
+    - sqlite-devel
+    - userspace-rcu-devel
+    - wget
+    - which
+    - xfsprogs
+    - yajl-devel
+
+- name: install dev help packages, not required by Gluster
+  package:
+    name: "{{ item }}"
+    state: latest
+  with_items:
+    - cgdb
+    - clang
+    - lsof
+    - perf
+    - sysstat
+    - systemtap
+    - systemtap-runtime
+    - tcpdump
+    - valgrind
+    - vim
