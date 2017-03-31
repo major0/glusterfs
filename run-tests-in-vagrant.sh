@@ -1,278 +1,162 @@
-#!/bin/bash
+#!/bin/sh
 
-###############################################################################
-# TODO: Support other OSes.                                                   #
-###############################################################################
+OPERATINGSYSTEM='fedora'
+AUTOSTART='false'
+CLEANUP_ON_EXIT='false'
+VERBOSE='false'
+VM_OP='test'
 
-ORIGIN_DIR=$PWD
-autostart="no"
-destroy_after_test="no"
-os="fedora"
-destroy_now="no"
-run_tests_args=""
-redirect=">/dev/null 2>&1"
-ssh="no"
-custom_cflags=""
+info() { echo "INFO: $(date -u): $*" | tee -a "tests/vagrant-${BRANCHNAME}/run-tests.log"; }
+err() { echo "ERROR: $*" >&2; }
+die() { err "$*"; exit 1; }
+vcmd()
+{
+	: "vcmd($*)"
+	if ${VERBOSE}; then
+		(cd "tests/vagrant-${BRANCHNAME}"; vagrant "$@")
+	else
+		(cd "tests/vagrant-${BRANCHNAME}"; vagrant "$@") >> "tests/vagrant-${BRANCHNAME}/run-tests.log" 2>&1
+	fi
+}
+vssh() { : "vssh($*)"; vcmd ssh -c "cd /home/vagrant/glusterfs ; $*" -- -t; }
+vsudo() { : "vsudo($*)"; vssh "sudo $*"; }
 
-
-pushd () {
-    command pushd "$@" >/dev/null
+destroy_vm_and_exit()
+{
+	# FIXME captive interface... after the user explicitly asked for this?
+	echo "!!!!!!!!!!!!!!!!!!!!!!!!!!!!CAUTION!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
+	echo "This will destroy VM and delete tests/vagrant-${BRANCHNAME} dir"
+	printf '\nDo you want to continue? [y/n]: '
+	while read LINE; do
+		case "${LINE}" in
+		([Yy]*) break;;
+		([Nn]*) exit 0;;
+		(*) printf 'Do you want to continue? [y/n]: '; continue;;
+		esac
+	done
+	test -d "tests/vagrant-${BRANCHNAME}" || die "invalid directory 'tests/vagrant-${BRANCHNAME}'"
+	vcmd destroy -f
+	rm -rf "tests/vagrant-${BRANCHNAME}"
+	exit 0
 }
 
-popd () {
-    command popd "$@" >/dev/null
-}
 
-function parse_args () {
-    args=`getopt \
+##
+# Argument handling
+eval set -- "$(getopt \
               --options a \
               --long autostart,os:,destroy-now,destroy-after-test,verbose,ssh \
               -n 'run-tests-in-vagrant.sh' \
-              --  "$@"`
-    eval set -- "$args"
-    while true; do
-        case "$1" in
-            -a|--autostart) autostart="yes"; shift ;;
-            --destroy-after-test) destroy_after_test="yes"; shift ;;
-            --destroy-now)  destroy_now="yes"; shift ;;
-            --ssh)  sshvm="yes"; shift ;;
-            --os)
-                case "$2" in
-                    "") shift 2 ;;
-                     *) os="$2" ; shift 2 ;;
-                esac ;;
-            --verbose)  redirect=""; shift ;;
-            --) shift ; break ;;
-            *) echo "Internal error!" ; exit 1;;
+              --  "$@")"
+while test "$#" -gt '0'; do
+	case "${1}" in
+        (-a|--autostart)	AUTOSTART='true';;
+        (--destroy-after-test)	CLEANUP_ON_EXIT='true';;
+        (--destroy-now)		VM_OP='destroy';;
+        (--ssh)			VM_OP='ssh';;
+        (--os)			OPERATINGSYSTEM="${2}"; shift;;
+        (--verbose)		VERBOSE='true';;
+        (--)			shift ; break ;;
+        (*)			break;;
         esac
-    done
-    run_tests_args="$@"
-}
+	shift
+done
 
-function force_location()
-{
-    current_dir=$(dirname $0);
-
-    if [ ! -f ${current_dir}/tests/vagrant/vagrant-template-fedora/Vagrantfile ]; then
-        echo "Aborting."
-        echo "The tests/vagrant subdirectory seems to be missing."
-        echo "Please correct the problem and try again."
-        exit 1
-    fi
-}
-
-function vagrant_check()
-{
-    vagrant -v >/dev/null  2>&1;
-
-    if [ $? -ne 0 ]; then
-        echo "Aborting"
-        echo "Vagrant not found. Please install Vagrant and try again."
-        echo "On Fedora, run "dnf install vagrant vagrant-libvirt" "
-        exit 1
-    fi
-}
-
-function ansible_check()
-{
-    ansible --version  >/dev/null  2>&1 ;
-
-    if [ $? -ne 0 ]; then
-        echo "Aborting"
-        echo "Ansible not found. Please install Ansible and try again."
-        echo "On Fedora, run "dnf install ansible" "
-        exit 1
-    fi
-}
-
-function set_branchname_from_git_branch()
-{
-    BRANCHNAME=`git rev-parse --abbrev-ref HEAD`
-    if [ $? -ne 0 ]; then
-        echo "Could not get branch name from git, will exit"
-        exit 1
-    fi
-}
-
-
-function destroy_vm_and_exit()
-{
-    echo "!!!!!!!!!!!!!!!!!!!!!!!!!!!!CAUTION!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
-    echo "This will destroy VM and delete tests/vagrant/${BRANCHNAME} dir"
-    echo
-    while true; do
-        read -p "Do you want to continue?" yn
-        case $yn in
-            [Yy]* ) break;;
-            * ) echo "Did not get an yes, exiting."; exit 1 ;;
-        esac
-    done
-    if [ -d "tests/vagrant/${BRANCHNAME}" ]; then
-        pushd "tests/vagrant/${BRANCHNAME}"
-        eval vagrant destroy $redirect
-        popd
-        rm -rf "tests/vagrant/${BRANCHNAME}"
-        exit 0
-    else
-        echo "Could not find vagrant dir for corresponding git branch, exiting"
-        exit 1
-    fi
-}
-
-
-function create_vagrant_dir()
-{
-    mkdir -p tests/vagrant/$BRANCHNAME
-    if [ -d "tests/vagrant/vagrant-template-${os}" ]; then
-        echo "Copying tests/vagrant/vagrant-template-${os} dir to tests/vagrant/${BRANCHNAME} ...."
-        cp -R tests/vagrant/vagrant-template-${os}/* tests/vagrant/$BRANCHNAME
-    else
-        echo "Could not find template files for requested os $os, exiting"
-        exit 1
-    fi
-}
-
-
-function start_vm()
-{
-    echo "Doing vagrant up...."
-    pushd "tests/vagrant/${BRANCHNAME}"
-    eval vagrant up $redirect
-    if [ $? -eq 0 ]
-    then
-            popd
-    else
-            echo "Vagrant up failed, exiting....";
-            popd
-            exit 1
-    fi
-}
-
-function set_vm_attributes()
-{
-    if [ "x$autostart" == "xyes" ] ; then
-        virsh autostart ${BRANCHNAME}_vagrant-testVM
-    fi
-}
-
-function copy_source_code()
-{
-    echo "Copying source code from host machine to VM...."
-    pushd "tests/vagrant/${BRANCHNAME}"
-    vagrant ssh-config > ssh_config
-    rsync -az -e "ssh -F ssh_config" --rsync-path="sudo rsync" "$ORIGIN_DIR/." vagrant-testVM:/home/vagrant/glusterfs
-    if [ $? -eq 0 ]
-    then
-            popd
-    else
-            echo "Copy failed, exiting...."
-            popd
-            exit 1
-    fi
-}
-
-function compile_gluster()
-{
-    echo "Source compile and install Gluster...."
-    pushd "tests/vagrant/${BRANCHNAME}"
-    vagrant ssh -c "cd /home/vagrant/glusterfs ; sudo make clean $redirect" -- -t
-    vagrant ssh -c "cd /home/vagrant/glusterfs ; sudo ./autogen.sh $redirect" -- -t
-    if [ $? -ne 0 ]
-    then
-            echo "autogen failed, exiting...."
-            popd
-            exit 1
-    fi
-
-    # GCC on fedora complains about uninitialized variables and
-    # GCC on centos6 does not under don't warn on uninitialized variables flag.
-    if [ "x$os" == "fedora" ] ; then
-            custom_cflags="CFLAGS='-g -O0 -Werror -Wall -Wno-error=cpp -Wno-error=maybe-uninitialized'"
-    else
-            custom_cflags="CFLAGS='-g -O0 -Werror -Wall'"
-    fi
-
-
-    custom_cflags=
-    vagrant ssh -c "cd /home/vagrant/glusterfs ; \
-            sudo \
-            $custom_cflags \
-            ./configure \
-            --prefix=/usr \
-            --exec-prefix=/usr \
-            --bindir=/usr/bin \
-            --sbindir=/usr/sbin \
-            --sysconfdir=/etc \
-            --datadir=/usr/share \
-            --includedir=/usr/include \
-            --libdir=/usr/lib64 \
-            --libexecdir=/usr/libexec \
-            --localstatedir=/var \
-            --sharedstatedir=/var/lib \
-            --mandir=/usr/share/man \
-            --infodir=/usr/share/info \
-            --libdir=/usr/lib64 \
-            --enable-debug $redirect" -- -t
-    if [ $? -ne 0 ]
-    then
-            echo "configure failed, exiting...."
-            popd
-            exit 1
-    fi
-    vagrant ssh -c "cd /home/vagrant/glusterfs; sudo make -j install $redirect" -- -t
-    if [ $? -ne 0 ]
-    then
-            echo "make failed, exiting...."
-            popd
-            exit 1
-    fi
-    popd
-}
-
-function run_tests()
-{
-    pushd "tests/vagrant/${BRANCHNAME}"
-    vagrant ssh -c "cd /home/vagrant/glusterfs; sudo ./run-tests.sh $run_tests_args" -- -t
-    popd
-}
-
-function ssh_into_vm_using_exec()
-{
-    pushd "tests/vagrant/${BRANCHNAME}"
-    exec vagrant ssh
-    popd
-}
-
-echo
-parse_args "$@"
-
+##
 # Check environment for dependencies
-force_location
-vagrant_check
-ansible_check
+test -d 'tests/vagrant' || die "directory missing 'tests/vagrant'"
+vagrant -v > /dev/null 2>&1 || die 'Vagrant not installed'
+ansible --version > /dev/null 2>&1 || die 'Ansible not installed'
+git --help > /dev/null 2>&1 || die 'Git not installed'
+
+##
+# Check our OS
+case "${OPERATINGSYSTEM}" in
+(fedora|centos6) ;;
+(*)	die "unsupported operating system '${OPERATINGSYSTEM}'";;
+esac
+export OPERATINGSYSTEM
 
 # We have one vm per git branch, query git branch
-set_branchname_from_git_branch
+BRANCHNAME="$(git rev-parse --abbrev-ref HEAD)"
+test "$?" -eq 0 || die 'Could not get branch name from git'
 
-if [ "x$destroy_now" == "xyes" ] ; then
-    destroy_vm_and_exit
-fi
+# What operation are we performing on the VM.
+case "${VM_OP}" in
+(destroy)
+	destroy_vm_and_exit;;
 
-if [ "x$sshvm" == "xyes" ] ; then
-    ssh_into_vm_using_exec
-fi
+(ssh)	# Can't use vcmd for this
+	# FIXME does the VM even exist?
+	cd "tests/vagrant-${BRANCHNAME}" || die 'failed to change directory'
+	exec vagrant ssh ;;
+(*)	;;# Default operation (make && test)
+esac
 
+# Make our test location
+! test -d "tests/vagrant-${BRANCHNAME}"
+echo "Copying tests/vagrant dir to tests/vagrant-${BRANCHNAME} ..."
+cp -R 'tests/vagrant' "tests/vagrant-${BRANCHNAME}" || exit 1
+touch "tests/vagrant-${BRANCHNAME}/run-tests.log"
+# note: info() can now be used
 
-create_vagrant_dir
-start_vm
-set_vm_attributes
+info "Doing vagrant up...."
+vcmd up || die 'vagrant up failed'
 
+# FIXME do we really want to enable autostart of test VMs?
+! ${autostart} || virsh autostart "${BRANCHNAME}_vagrant-testVM"
 
+##
+# Copy the source code
+info "Copying source code from host machine to VM...."
+SRCDIR="${PWD}"
+# Careful, can't use vcmd here..
+(cd "tests/vagrant-${BRANCHNAME}"
+ vagrant ssh-config > ssh_config
+ rsync -rpl -e 'ssh -F ssh_config' "${SRCDIR}/." 'vagrant-testVM:/home/vagrant/glusterfs/')
+test "$?" -eq 0 || die 'Copy failed'
 
-copy_source_code
-compile_gluster
-run_tests
+##
+# Compile
+info "Source compile and install Gluster...."
+vssh 'make clean' || : # Make might not even exist at this point...
+vssh './autogen.sh' || die 'autogen.sh failed'
 
-if [ "x$destroy_after_test" == "xyes" ] ; then
-    destroy_vm_and_exit
-fi
+# GCC on fedora complains about uninitialized variables and
+custom_cflags='-g -O0 -Werror -Wall'
+case "${os}" in
+# GCC on centos6 does not understand don't warn on uninitialized variables flag.
+(centos6);;
+
+# Increase checks
+(*) custom_cflags="${custom_cflags} -Wno-error=cpp -Wno-error=maybe-uninitialized";;
+esac
+
+vssh "CFLAGS='${custom_cflags}' \
+	./configure \
+	--prefix=/usr \
+	--exec-prefix=/usr \
+	--bindir=/usr/bin \
+	--sbindir=/usr/sbin \
+	--sysconfdir=/etc \
+	--datadir=/usr/share \
+	--includedir=/usr/include \
+	--libdir=/usr/lib64 \
+	--libexecdir=/usr/libexec \
+	--localstatedir=/var \
+	--sharedstatedir=/var/lib \
+	--mandir=/usr/share/man \
+	--infodir=/usr/share/info \
+	--libdir=/usr/lib64 \
+	--enable-debug"
+test "$?" -eq 0 || die 'failed to configure source'
+# FIXME make -j seems excessive...
+vssh 'make -j' || die 'compile failed'
+vsudo 'make install' || die 'install failed'
+
+##
+# Run the tests
+vsudo './run-tests.sh' || die 'run-tests.sh failed'
+
+# FIXME trap 0 cleanup?
+! ${CLEANUP_ON_EXIT} || destroy_vm_and_exit
