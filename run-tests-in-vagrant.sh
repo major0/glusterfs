@@ -94,9 +94,10 @@ case "${VM_OP}" in
 esac
 
 # Make our test location
-! test -d "tests/vagrant-${BRANCHNAME}"
-echo "Copying tests/vagrant dir to tests/vagrant-${BRANCHNAME} ..."
-cp -R 'tests/vagrant' "tests/vagrant-${BRANCHNAME}" || exit 1
+if ! test -d "tests/vagrant-${BRANCHNAME}"; then
+	echo "Copying tests/vagrant dir to tests/vagrant-${BRANCHNAME} ..."
+	cp -R 'tests/vagrant' "tests/vagrant-${BRANCHNAME}" || exit 1
+fi
 touch "tests/vagrant-${BRANCHNAME}/run-tests.log"
 # note: info() can now be used
 
