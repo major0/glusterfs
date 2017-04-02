@@ -3,6 +3,7 @@
 OPERATINGSYSTEM='fedora'
 AUTOSTART='false'
 CLEANUP_ON_EXIT='false'
+PROVISION='false'
 VERBOSE='false'
 VM_OP='test'
 
@@ -45,7 +46,7 @@ destroy_vm_and_exit()
 # Argument handling
 eval set -- "$(getopt \
               --options a \
-              --long autostart,os:,destroy-now,destroy-after-test,verbose,ssh \
+              --long autostart,os:,destroy-now,destroy-after-test,verbose,ssh,provision \
               -n 'run-tests-in-vagrant.sh' \
               --  "$@")"
 while test "$#" -gt '0'; do
@@ -54,6 +55,7 @@ while test "$#" -gt '0'; do
         (--destroy-after-test)	CLEANUP_ON_EXIT='true';;
         (--destroy-now)		VM_OP='destroy';;
         (--ssh)			VM_OP='ssh';;
+	(--provision)		PROVISION='true';;
         (--os)			OPERATINGSYSTEM="${2}"; shift;;
         (--verbose)		VERBOSE='true';;
         (--)			shift ; break ;;
@@ -101,8 +103,13 @@ fi
 touch "tests/vagrant-${BRANCHNAME}/run-tests.log"
 # note: info() can now be used
 
-info "Doing vagrant up...."
-vcmd up || die 'vagrant up failed'
+if ${PROVISION}; then
+	info "Doing vagrant provision..."
+	vcmd provision || die 'vagrant provision failed'
+else
+	info "Doing vagrant up...."
+	vcmd up || die 'vagrant up failed'
+fi
 
 # FIXME do we really want to enable autostart of test VMs?
 ! ${autostart} || virsh autostart "${BRANCHNAME}_vagrant-testVM"
