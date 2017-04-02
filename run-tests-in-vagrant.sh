@@ -74,7 +74,9 @@ git --help > /dev/null 2>&1 || die 'Git not installed'
 ##
 # Check our OS
 case "${OPERATINGSYSTEM}" in
-(fedora|centos6) ;;
+(fedora|centos|centos[67]) ;;
+(ubuntu|xenial|trusty) ;;
+(debian|jessie|wheezy) ;;
 (*)	die "unsupported operating system '${OPERATINGSYSTEM}'";;
 esac
 export OPERATINGSYSTEM

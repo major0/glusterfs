@@ -17,6 +17,9 @@
       paths:
         - ../vars
 
+- name: puppetlabs repo on one of the centos6 images is bad
+  file: name=/etc/yum.repos.d/puppetlabs-pc1.repo state=absent
+
 - name: update installed packages
   package: name=* state=latest
 

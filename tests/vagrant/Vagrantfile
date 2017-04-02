@@ -10,31 +10,34 @@ Vagrant.configure("2") do |config|
       end
       case os_name
         when 'centos6'
-          testvm.vm.box = "raghavendra-talur/gluster-dev-centos6"
-	when 'centos7'
+	  os_name = 'centos'
+          testvm.vm.box = 'centos/6'
+	when 'centos', 'centos7'
+	  os_name = 'centos'
 	  testvm.vm.box = 'centos/7'
 	when 'fedora'
+	  os_name = 'fedora'
           testvm.vm.box = "gluster-dev-fedora"
           testvm.vm.box_url = "https://download.gluster.org/pub/gluster/glusterfs/vagrant/gluster-dev-fedora/boxes/gluster-dev-fedora.json"
 	when 'fedora25'
+	  os_name = 'fedora'
 	  testvm.vm.box = 'fedora/25-cloud-base'
 	  config.vm.provision "shell", inline: "sudo dnf -y install python2-dnf libselinux-python"
-	when 'debian'
-	  testvm.vm.box = 'debian/jessie64'
-	when 'jessie'
+	when 'debian', 'jessie'
 	  os_name = 'debian'
-	  testvm.vm.box = 'debian/jessie64'
-	when 'ubuntu'
-	  testvm.vm.box = 'ubuntu/xenial64'
-	when 'xenial'
-	  os_name = ubuntu
-	  testvm.vm.box = 'ubuntu/xenial64'
+	  testvm.vm.box = 'alxgrh/debian-jessie-x86_64'
+	when 'wheezy'
+	  os_name = 'debian'
+	  testvm.vm.box = 'alxgrh/debian-wheezy-x86_64'
+	when 'ubuntu', 'xenial'
+	  os_name = 'ubuntu'
+	  testvm.vm.box = 'yko/ubuntu-xenial'
 	when 'trusty'
-	  os_name = ubuntu
-	  testvm.vm.box = 'ubuntu/trusty64'
+	  os_name = 'ubuntu'
+	  testvm.vm.box = 'alxgrh/ubuntu-trusty-x86_64'
 	when 'precise'
-	  os_name = ubuntu
-	  testvm.vm.box = 'ubuntu/precise64'
+	  os_name = 'ubuntu'
+	  testvm.vm.box = 'alxgrh/ubuntu-precise-x86_64'
       end
       testvm.vm.hostname = "vagrant-testVM"
       #testvm.ssh.insert_key = false
