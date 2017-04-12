@@ -291,7 +291,7 @@ glusterd_btrfs_brick_details (dict_t *rsp_dict,
 	 * uniq usage if quota's are enabled (though no quotas need to be set).
 	 */
 
-        return -1;
+        return 0;
 }
 
 
