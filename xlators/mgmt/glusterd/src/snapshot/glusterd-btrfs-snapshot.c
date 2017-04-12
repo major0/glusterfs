@@ -160,6 +160,7 @@ glusterd_btrfs_snapshot_create (glusterd_brickinfo_t *brickinfo,
 	char             subvol[NAME_MAX]          = "";
 	char            *device_path               = NULL;
 	char            *mnt_pt                    = NULL;
+	char            *origin_mnt_pt             = NULL;
         int              ret                       = -1;
         runner_t         runner                    = {0,};
         xlator_t        *this                      = NULL;
@@ -181,6 +182,16 @@ glusterd_btrfs_snapshot_create (glusterd_brickinfo_t *brickinfo,
 		goto out;
 	}
 
+	/* Find the volume from the brick_path */
+        ret = glusterd_get_brick_root (origin_brick_path, &origin_mnt_pt);
+        if (ret) {
+                gf_msg (this->name, GF_LOG_ERROR, 0,
+                        GD_MSG_BRICKPATH_ROOT_GET_FAIL,
+                        "getting the root "
+                        "of the brick (%s) failed ", origin_brick_path);
+                goto out;
+        }
+
 	/* Copy the snapname from the device_path and then fix the device_path.
 	 * FIXME In the long run we need to find another way to pull this off
 	 */
@@ -190,17 +201,17 @@ glusterd_btrfs_snapshot_create (glusterd_brickinfo_t *brickinfo,
 	if (!mnt_pt)
 		goto out;
 
-	/* From here we can perform our snapshot against our origin_brick_path
+	/* From here we can perform our snapshot against our origin_mnt_pt
 	 * to 'run/gluster/btr/<subvol>/@<subvol>'. */
 	snprintf (btrfs_snap_path, sizeof(btrfs_snap_path), "%s/@%s",
 			mnt_pt, subvol);
 
         /* Taking the actual snapshot */
         runinit (&runner);
-        snprintf (msg, sizeof (msg), "taking snapshot of the brick %s",
-                  origin_brick_path);
+        snprintf (msg, sizeof (msg), "taking snapshot of the brick %s @ %s",
+                  origin_brick_path, origin_mnt_pt);
         runner_add_args (&runner, "/bin/btrfs", "subvolume", "snapshot",
-			          origin_brick_path, btrfs_snap_path,
+			          origin_mnt_pt, btrfs_snap_path,
 				  NULL);
         runner_log (&runner, this->name, GF_LOG_DEBUG, msg);
         ret = runner_run (&runner);
