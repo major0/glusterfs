@@ -2,14 +2,79 @@
 #include <sys/types.h>
 #include <unistd.h>
 
+#if defined(GF_LINUX_HOST_OS)
+#include <mntent.h>
+#else
+#include "mntent_compat.h"
+#endif
+
 #include "glusterd-messages.h"
 #include "glusterd-errno.h"
 
 #include "glusterd.h"
 #include "glusterd-utils.h"
 #include "glusterd-snapshot-utils.h"
+
 #include "dict.h"
 #include "run.h"
+
+/* This function will check whether the given device
+ * is a ZFS device.
+ *
+ * @param device        device path
+ *
+ * @return              _gf_true if zfs else _gf_false
+ */
+static gf_boolean_t
+glusterd_zfs_probe (char *brick_path)
+{
+	int                   ret               = -1;
+	char                 *mnt_pt            = NULL;
+	char                  buff[PATH_MAX]    = "";
+	struct mntent        *entry             = NULL;
+	struct mntent         save_entry        = {0,};
+	xlator_t             *this              = NULL;
+	gf_boolean_t          is_zfs            = _gf_false;
+
+        this = THIS;
+	GF_ASSERT (this);
+	GF_ASSERT (brick_path);
+
+        if (!glusterd_is_cmd_available ("/sbin/zfs")) {
+                gf_msg (this->name, GF_LOG_ERROR, 0,
+                        GD_MSG_COMMAND_NOT_FOUND, "ZFS commands not found");
+                goto out;
+        }
+
+	ret = glusterd_get_brick_root (brick_path, &mnt_pt);
+	if (ret) {
+		gf_msg (this->name, GF_LOG_ERROR, 0,
+				GD_MSG_BRICKPATH_ROOT_GET_FAIL,
+				"getting the root "
+				"of the brick (%s) failed ", brick_path);
+		goto out;
+	}
+
+	entry = glusterd_get_mnt_entry_info (mnt_pt, buff, sizeof (buff),
+			&save_entry);
+	if (!entry) {
+		gf_msg (this->name, GF_LOG_ERROR, 0,
+				GD_MSG_MNTENTRY_GET_FAIL,
+				"getting the mount entry for "
+				"the brick (%s) failed", brick_path);
+		goto out;
+	}
+
+	if (0 == strncmp("zfs", entry->mnt_type, 5)) {
+		is_zfs = _gf_true;
+	}
+
+out:
+	if (mnt_pt)
+		GF_FREE(mnt_pt);
+
+	return is_zfs;
+}
 
 static char *
 glusterd_zfs_snapshot_device (char *device, char *snapname,
@@ -294,12 +359,81 @@ end:
 	return ret;
 }
 
+int32_t
+glusterd_zfs_snapshot_missed (char *volname, char *snapname,
+                              glusterd_brickinfo_t *brickinfo,
+                              glusterd_snap_op_t *snap_opinfo)
+{
+        int32_t                      ret              = -1;
+        xlator_t                    *this             = NULL;
+	char			    *snap_device      = NULL;
+
+	snap_device = glusterd_zfs_snapshot_device (NULL, volname,
+			                            snap_opinfo->brick_num - 1);
+        if (!snap_device) {
+                gf_msg (this->name, GF_LOG_ERROR, ENXIO,
+                        GD_MSG_SNAP_DEVICE_NAME_GET_FAIL,
+                        "cannot copy the snapshot "
+                        "device name (volname: %s, snapname: %s)",
+                         volname, snapname);
+                ret = -1;
+                goto out;
+        }
+        strncpy (brickinfo->device_path, snap_device,
+                 sizeof(brickinfo->device_path));
+
+	ret = glusterd_zfs_snapshot_create (brickinfo, snap_opinfo->brick_path);
+        if (ret) {
+                gf_msg (this->name, GF_LOG_ERROR, 0,
+                        GD_MSG_SNAPSHOT_OP_FAILED,
+                        "zfs snapshot failed for %s",
+                        snap_opinfo->brick_path);
+                goto out;
+        }
+
+out:
+	return ret;
+}
+
+int32_t
+glusterd_zfs_snapshot_remove (glusterd_volinfo_t *snap_vol,
+                                glusterd_brickinfo_t *brickinfo,
+                                const char *mount_pt, const char *snap_device)
+{
+        int                     ret                       = -1;
+        xlator_t               *this                      = NULL;
+        glusterd_conf_t        *priv                      = NULL;
+        runner_t                runner                    = {0,};
+        char                    msg[1024]                 = {0, };
+
+        this = THIS;
+        GF_ASSERT (this);
+        priv = this->private;
+        GF_ASSERT (priv);
+
+	runner_add_args (&runner, "/sbin/zfs", "destroy", snap_device, NULL);
+        runner_log (&runner, "", GF_LOG_DEBUG, msg);
+
+        ret = runner_run (&runner);
+        if (ret) {
+                gf_msg (this->name, GF_LOG_ERROR, 0,
+                        GD_MSG_SNAP_REMOVE_FAIL, "removing snapshot of the "
+                        "brick (%s:%s) failed",
+                        brickinfo->hostname, brickinfo->path);
+		ret = -1;
+                goto out;
+        }
+
+out:
+        return ret;
+}
+
 struct glusterd_snap_ops zfs_snap_ops = {
 	.name		= "ZFS",
-	/*.probe		= glusterd_zfs_probe,*/
+	.probe		= glusterd_zfs_probe,
 	.details	= glusterd_zfs_brick_details,
 	.device		= glusterd_zfs_snapshot_device,
 	.create		= glusterd_zfs_snapshot_create,
-	/*.missed		= glusterd_zfs_snapshot_missed,*/
-	/*.remove		= glusterd_zfs_snapshot_remove,*/
+	.missed		= glusterd_zfs_snapshot_missed,
+	.remove		= glusterd_zfs_snapshot_remove,
 };
