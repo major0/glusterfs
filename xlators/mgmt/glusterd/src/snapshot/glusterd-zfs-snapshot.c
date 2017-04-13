@@ -40,7 +40,8 @@ glusterd_zfs_probe (char *brick_path)
 	GF_ASSERT (this);
 	GF_ASSERT (brick_path);
 
-        if (!glusterd_is_cmd_available ("/sbin/zfs")) {
+        if (!glusterd_is_cmd_available ("/sbin/zfs") ||
+            !glusterd_is_cmd_available ("/sbin/zpool")) {
                 gf_msg (this->name, GF_LOG_ERROR, 0,
                         GD_MSG_COMMAND_NOT_FOUND, "ZFS commands not found");
                 goto out;
