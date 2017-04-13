@@ -137,96 +137,93 @@ static int32_t
 glusterd_zfs_snapshot_create (glusterd_brickinfo_t *brickinfo,
                               char *origin_brick_path)
 {
-	char             msg[NAME_MAX]    = "";
+	char             msg[1024]    = "";
 	char             buf[PATH_MAX]    = "";
-	/*char            *ptr              = NULL;*/
-	/*char            *origin_device    = NULL;*/
 	int              ret              = -1;
-	/*int              len              = 0;*/
-	/*gf_boolean_t     match            = _gf_false;*/
-	runner_t         runner           = {0,};
-	xlator_t        *this             = NULL;
-	/*char            delimiter[]       = "/";*/
 	char            *zpool_name       = NULL;
 	char            *zpool_id         = NULL;
-	char            *s1               = NULL;
-	char            *s2               = NULL;
+	char            zfs_clone[PATH_MAX] = "";
+	char            zfs_mntpt[256]	  = "";
+	runner_t         runner           = {0,};
+	xlator_t        *this             = NULL;
 
 	this = THIS;
 	GF_ASSERT (this);
 	GF_ASSERT (brickinfo);
 	GF_ASSERT (origin_brick_path);
 
-	s1 = GF_CALLOC(1, 128, gf_gld_mt_char);
-	if (!s1) {
-		gf_log (this->name, GF_LOG_ERROR,
-			"Could not allocate memory for s1");
-		goto out;
-	}
-	s2 = GF_CALLOC(1, 128, gf_gld_mt_char);
-	if (!s2) {
-		gf_log (this->name, GF_LOG_ERROR,
-			"Could not allocate memory for s2");
-		goto out;
-	}
-	strncpy(buf,brickinfo->device_path, sizeof(buf));
+	strncpy(buf, brickinfo->device_path, sizeof(buf));
 	zpool_name = strtok(buf, "@");
 	if (!zpool_name) {
-		gf_log (this->name, GF_LOG_ERROR,
+		gf_msg (this->name, GF_LOG_ERROR, 0, GD_MSG_SNAP_CREATION_FAIL,
 			"Could not get zfs pool name");
 		goto out;
 	}
+	gf_log (this->name, GF_LOG_DEBUG, "zpool_name = %s", zpool_name);
+
 	zpool_id   = strtok(NULL, "@");
 	if (!zpool_id) {
-		gf_log (this->name, GF_LOG_ERROR,
+		gf_msg (this->name, GF_LOG_ERROR, 0, GD_MSG_SNAP_CREATION_FAIL,
 			"Could not get zfs pool id");
 		goto out;
 	}
+	gf_log (this->name, GF_LOG_DEBUG, "zpool_id = %s", zpool_id);
+
 	/* Taking the actual snapshot */
+	gf_log (this->name, GF_LOG_DEBUG, "zfs snapping %s to %s",
+	        origin_brick_path, brickinfo->device_path);
 	runinit (&runner);
 	snprintf (msg, sizeof (msg), "taking snapshot of the brick %s",
 			origin_brick_path);
-	runner_add_args (&runner, "zfs", "snapshot", brickinfo->device_path, NULL);
-	runner_log (&runner, this->name, GF_LOG_DEBUG, msg);
-	ret = runner_run (&runner);
+	runner_add_args (&runner, "zfs", "snapshot",
+	                 brickinfo->device_path, NULL);
+	runner_log (&runner, "", GF_LOG_DEBUG, msg);
+	ret = runner_start (&runner);
 	if (ret) {
-		gf_log (this->name, GF_LOG_ERROR, "taking snapshot of the "
-			"brick (%s) of device %s failed",
+		gf_msg (this->name, GF_LOG_ERROR, 0, GD_MSG_SNAP_CREATION_FAIL,
+			"taking snapshot of the brick (%s) "
+			"of device %s failed",
 			origin_brick_path, brickinfo->device_path);
-
-		goto end;
+		runner_end (&runner);
+		goto out;
 	}
+	runner_end (&runner);
 
+	gf_log (this->name, GF_LOG_DEBUG, "taking zfs clone of %s",
+	        brickinfo->device_path);
 	runinit(&runner);
 	snprintf (msg, sizeof (msg), "taking clone of the brick %s",
-			origin_brick_path);
-	sprintf(s1, "%s/%s", zpool_name, zpool_id);
-	runner_add_args (&runner, "zfs", "clone", brickinfo->device_path, s1, NULL);
+	          origin_brick_path);
+	sprintf(zfs_clone, "%s/%s", zpool_name, zpool_id);
+	runner_add_args (&runner, "zfs", "clone", brickinfo->device_path,
+	                 zfs_clone, NULL);
 	runner_log (&runner, this->name, GF_LOG_DEBUG, msg);
-	ret = runner_run (&runner);
+	ret = runner_start (&runner);
 	if (ret) {
-		gf_log (this->name, GF_LOG_ERROR, "taking clone of the "
-			"brick (%s) of device %s %s failed",
-			origin_brick_path, brickinfo->device_path, s1);
+		gf_msg (this->name, GF_LOG_ERROR, 0, GD_MSG_SNAP_CREATION_FAIL,
+			"taking clone of the brick (%s) of device %s %s failed",
+			origin_brick_path, brickinfo->device_path, zfs_clone);
 
-		goto end;
+		runner_end(&runner);
+		goto out;
 	}
+	runner_end(&runner);
 
+	gf_log (this->name, GF_LOG_DEBUG, "mounting zfs clone %s on %s",
+	        zfs_clone, brickinfo->path);
 	runinit(&runner);
 	snprintf (msg, sizeof (msg), "mount clone of the brick %s",
 			origin_brick_path);
-	sprintf(s2, "mountpoint=%s", brickinfo->path);
-	runner_add_args (&runner, "zfs", "set", s2, s1, NULL);
+	sprintf(zfs_mntpt, "mountpoint=%s", brickinfo->path);
+	runner_add_args (&runner, "zfs", "set", zfs_mntpt, zfs_clone, NULL);
 	runner_log (&runner, this->name, GF_LOG_DEBUG, msg);
 	ret = runner_run (&runner);
 	if (ret) {
-		gf_log (this->name, GF_LOG_ERROR, "taking snapshot of the "
-			"brick (%s) of device %s %s failed",
-			origin_brick_path, s2, s1);
+		gf_msg (this->name, GF_LOG_ERROR, 0, GD_MSG_SNAP_CREATION_FAIL,
+			"taking snapshot of the brick (%s) "
+			"of device %s %s failed",
+			origin_brick_path, zfs_mntpt, zfs_clone);
 	}
-
-end:
-	//runner_end (&runner);
 out:
         return ret;
 }
@@ -393,6 +390,8 @@ glusterd_zfs_snapshot_missed (char *volname, char *snapname,
         }
 
 out:
+	if (snap_device)
+		GF_FREE(snap_device);
 	return ret;
 }
 
