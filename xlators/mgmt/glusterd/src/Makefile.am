@@ -41,8 +41,7 @@ noinst_HEADERS = glusterd.h glusterd-utils.h glusterd-op-sm.h \
 	glusterd-snapd-svc-helper.h glusterd-rcu.h glusterd-bitd-svc.h \
 	glusterd-scrub-svc.h glusterd-server-quorum.h glusterd-errno.h \
 	glusterd-tierd-svc.h glusterd-tierd-svc-helper.h \
-	$(CONTRIBDIR)/userspace-rcu/rculist-extra.h \
-	snapshot/glusterd-lvm-snapshot.h
+	$(CONTRIBDIR)/userspace-rcu/rculist-extra.h
 
 AM_CPPFLAGS = $(GF_CPPFLAGS) -I$(top_srcdir)/libglusterfs/src \
 	-I$(top_srcdir)/xlators/mgmt/glusterd/src/snapshot \

@@ -19,7 +19,6 @@
 #include "glusterd-op-sm.h"
 #include "glusterd-store.h"
 #include "glusterd-snapshot-utils.h"
-#include "glusterd-lvm-snapshot.h"
 #include "glusterd-svc-mgmt.h"
 #include "glusterd-snapd-svc-helper.h"
 #include "glusterd-tierd-svc-helper.h"
@@ -508,7 +507,7 @@ out:
 }
 
 /* Given the missed_snapinfo and snap_opinfo take the
- * missed lvm snapshot
+ * missed snapshot
  */
 int32_t
 glusterd_create_missed_snap (glusterd_missed_snap_info *missed_snapinfo,
@@ -591,11 +590,7 @@ glusterd_create_missed_snap (glusterd_missed_snap_info *missed_snapinfo,
                  * the file-system type */
         }
 
-	if (glusterd_is_lvm_brick (snap_opinfo->brick_path)) {
-		ret = glusterd_lvm_snapshot_missed (snap_vol->volname,
-				                    snap->snapname,
-				                    brickinfo, snap_opinfo);
-	} else {
+	if (!glusterd_snapshot_probe(snap_opinfo->brick_path, brickinfo)) {
                 gf_msg (this->name, GF_LOG_ERROR, 0,
                         GD_MSG_SNAPSHOT_OP_FAILED,
                         "Volume does not support snapshots (%s)",
@@ -604,6 +599,10 @@ glusterd_create_missed_snap (glusterd_missed_snap_info *missed_snapinfo,
                 goto out;
 	}
 
+
+	ret = brickinfo->snap->missed (snap_vol->volname,
+			              snap->snapname,
+			              brickinfo, snap_opinfo);
         if (ret) {
                 gf_msg (this->name, GF_LOG_ERROR, 0,
                         GD_MSG_SNAPSHOT_OP_FAILED,

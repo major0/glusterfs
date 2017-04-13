@@ -51,7 +51,6 @@
 #include "glusterd-messages.h"
 #include "glusterd-volgen.h"
 #include "glusterd-snapshot-utils.h"
-#include "glusterd-lvm-snapshot.h"
 #include "glusterd-svc-mgmt.h"
 #include "glusterd-svc-helper.h"
 #include "glusterd-shd-svc.h"
@@ -809,6 +808,7 @@ glusterd_brickinfo_dup (glusterd_brickinfo_t *brickinfo,
         strcpy (dup_brickinfo->mount_dir, brickinfo->mount_dir);
         dup_brickinfo->status = brickinfo->status;
         dup_brickinfo->snap_status = brickinfo->snap_status;
+	dup_brickinfo->snap = brickinfo->snap;
 out:
         return ret;
 }

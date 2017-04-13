@@ -192,12 +192,13 @@ typedef struct {
         uint32_t                   blockers;
 } glusterd_conf_t;
 
-
 typedef enum gf_brick_status {
         GF_BRICK_STOPPED,
         GF_BRICK_STARTED,
         GF_BRICK_STOPPING,
 } gf_brick_status_t;
+
+struct glusterd_snap_ops;
 
 struct glusterd_brickinfo {
         char               hostname[1024];
@@ -220,6 +221,8 @@ struct glusterd_brickinfo {
         char vg[PATH_MAX]; /* FIXME: Use max size for length of vg */
         int     caps; /* Capability */
         int32_t            snap_status;
+	struct glusterd_snap_ops *snap;
+
         /*
          * The group is used to identify which bricks are part of the same
          * replica set during brick-volfile generation, so that JBR volfiles

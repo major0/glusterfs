@@ -30,7 +30,6 @@
 #include "glusterd-server-quorum.h"
 #include "glusterd-messages.h"
 #include "glusterd-errno.h"
-#include "glusterd-lvm-snapshot.h"
 
 int32_t
 glusterd_snapshot_remove (dict_t *rsp_dict, glusterd_volinfo_t *snap_vol);
@@ -127,7 +126,37 @@ glusterd_cleanup_snaps_for_volume (glusterd_volinfo_t *volinfo)
         return op_ret;
 }
 
+struct glusterd_snap_ops lvm_snap_ops;
+gf_boolean_t
+glusterd_snapshot_probe(char *brick_path, glusterd_brickinfo_t *brickinfo)
+{
+	struct glusterd_snap_ops *glusterd_snap_backend[] = {
+					&lvm_snap_ops,
+					0,
+				  };
+        xlator_t                 *this  = NULL;
 
+	this = THIS;
+
+	if (brickinfo->snap)
+		return _gf_true;
+
+	gf_log (this->name, GF_LOG_INFO,
+		"Probing brick %s for snapshot support", brick_path);
+	for (int i = 0; glusterd_snap_backend[i]; i++) {
+		if (glusterd_snap_backend[i]->probe(brick_path)) {
+			gf_log (this->name, GF_LOG_INFO,
+				"%s backend detected",
+			        glusterd_snap_backend[i]->name);
+			brickinfo->snap = glusterd_snap_backend[i];
+			return _gf_true;
+		}
+		gf_log (this->name, GF_LOG_INFO,
+			"not a %s backend", glusterd_snap_backend[i]->name);
+	}
+
+	return _gf_false;
+}
 
 int
 glusterd_snap_geo_rep_restore (glusterd_volinfo_t *snap_volinfo,

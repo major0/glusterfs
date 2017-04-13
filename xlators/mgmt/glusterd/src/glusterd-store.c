@@ -34,7 +34,6 @@
 #include "store.h"
 #include "glusterd-store.h"
 #include "glusterd-snapshot-utils.h"
-#include "glusterd-lvm-snapshot.h"
 #include "glusterd-messages.h"
 
 #include "rpc-clnt.h"

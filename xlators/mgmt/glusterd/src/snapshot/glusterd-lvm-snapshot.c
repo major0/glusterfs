@@ -22,7 +22,6 @@
 #include "run.h"
 
 #include "lvm-defaults.h"
-#include "glusterd-lvm-snapshot.h"
 
 
 int glusterd_snapshot_umount (glusterd_volinfo_t *snap_vol,
@@ -117,7 +116,7 @@ out:
  * @return              _gf_true if LV is thin else _gf_false
  */
 gf_boolean_t
-glusterd_is_lvm_brick (char *brick_path)
+glusterd_lvm_probe (char *brick_path)
 {
         int             ret                     = -1;
         char            msg [1024]              = "";
@@ -633,3 +632,13 @@ out:
 
         return ret;
 }
+
+struct glusterd_snap_ops lvm_snap_ops = {
+	.name		= "LVM",
+	.probe		= glusterd_lvm_probe,
+	.details	= glusterd_lvm_brick_details,
+	.device		= glusterd_lvm_snapshot_device,
+	.create		= glusterd_lvm_snapshot_create,
+	.missed		= glusterd_lvm_snapshot_missed,
+	.remove		= glusterd_lvm_snapshot_remove,
+};
