@@ -99,6 +99,8 @@ struct glusterd_snap_ops {
 					 glusterd_brickinfo_t *brickinfo,
 					 const char *mount_pt,
 					 const char *snap_device);
+	int32_t		(*const mount)	(glusterd_brickinfo_t *brickinfo,
+                                         char *brick_mount_path);
 };
 
 gf_boolean_t

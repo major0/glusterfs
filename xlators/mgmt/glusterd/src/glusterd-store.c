@@ -3394,6 +3394,9 @@ out:
 
 /* Check if brick_mount_path is already mounted. If not, mount the device_path
  * at the brick_mount_path
+ #
+ * FIXME if the brick/snapshot isn't mounted then we have no way to probe the
+ * supported snapshot type.
  */
 int32_t
 glusterd_mount_brick_paths (char *brick_mount_path,

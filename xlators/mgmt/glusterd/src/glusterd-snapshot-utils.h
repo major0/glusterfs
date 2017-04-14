@@ -22,6 +22,15 @@ glusterd_snap_volinfo_find_from_parent_volname (char *origin_volname,
 gf_boolean_t
 glusterd_snapshot_probe(char *path, glusterd_brickinfo_t *brickinfo);
 
+int32_t
+glusterd_snapshot_mount (glusterd_brickinfo_t *brickinfo,
+                             char *brick_mount_path);
+
+int
+glusterd_snapshot_umount(glusterd_volinfo_t *snap_vol,
+		             glusterd_brickinfo_t *brickinfo,
+			     const char *mount_pt);
+
 int
 glusterd_snap_volinfo_find_by_volume_id (uuid_t volume_id,
                                          glusterd_volinfo_t **volinfo);

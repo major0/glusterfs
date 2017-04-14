@@ -24,10 +24,6 @@
 #include "lvm-defaults.h"
 
 
-int glusterd_snapshot_umount (glusterd_volinfo_t *snap_vol,
-		              glusterd_brickinfo_t *brickinfo,
-			      const char *mount_pt);
-
 /* This function will update the file-system label of the
  * backend snapshot brick.
  *
@@ -641,4 +637,5 @@ struct glusterd_snap_ops lvm_snap_ops = {
 	.create		= glusterd_lvm_snapshot_create,
 	.missed		= glusterd_lvm_snapshot_missed,
 	.remove		= glusterd_lvm_snapshot_remove,
+	.mount		= glusterd_snapshot_mount,
 };

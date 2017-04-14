@@ -158,6 +158,182 @@ glusterd_snapshot_probe(char *brick_path, glusterd_brickinfo_t *brickinfo)
 	return _gf_false;
 }
 
+int32_t
+glusterd_snapshot_mount (glusterd_brickinfo_t *brickinfo,
+                             char *brick_mount_path)
+{
+        char               msg[NAME_MAX]  = "";
+        char               mnt_opts[1024] = "";
+	char		   buff[PATH_MAX] = {0};
+        int32_t            ret            = -1;
+        runner_t           runner         = {0, };
+        xlator_t          *this           = NULL;
+	struct mntent	  *entry          = NULL;
+        struct mntent      save_entry     = {0};
+
+        this = THIS;
+        GF_ASSERT (this);
+        GF_ASSERT (brick_mount_path);
+        GF_ASSERT (brickinfo);
+
+	/* Check to see if the brick is already mounted */
+	entry = glusterd_get_mnt_entry_info (brick_mount_path, buff,
+	                                     sizeof (buff), &save_entry);
+	gf_log (this->name, GF_LOG_DEBUG, "Checking to see if %s (%s) "
+		"is already mounted @ %s", brickinfo->device_path,
+		brickinfo->path, brick_mount_path);
+	if (entry) {
+		if (0 == strcmp(brickinfo->path, brick_mount_path)) {
+			gf_log (this->name, GF_LOG_INFO,
+				"Snapshot already mounted at %s",
+				brick_mount_path);
+			ret = 0;
+			goto out;
+		}
+	}
+
+        runinit (&runner);
+        snprintf (msg, sizeof (msg), "mount %s %s",
+                  brickinfo->device_path, brick_mount_path);
+
+        strcpy (mnt_opts, brickinfo->mnt_opts);
+
+        /* XFS file-system does not allow to mount file-system with duplicate
+         * UUID. File-system UUID of snapshot and its origin volume is same.
+         * Therefore to mount such a snapshot in XFS we need to pass nouuid
+         * option
+         */
+        if (!strcmp (brickinfo->fstype, "xfs") &&
+            !glusterd_mntopts_exists (mnt_opts, "nouuid")) {
+                if (strlen (mnt_opts) > 0)
+                        strcat (mnt_opts, ",");
+                strcat (mnt_opts, "nouuid");
+        }
+
+
+        if (strlen (mnt_opts) > 0) {
+                runner_add_args (&runner, "mount", "-o", mnt_opts,
+                                brickinfo->device_path, brick_mount_path, NULL);
+        } else {
+                runner_add_args (&runner, "mount", brickinfo->device_path,
+                                 brick_mount_path, NULL);
+        }
+
+        runner_log (&runner, this->name, GF_LOG_DEBUG, msg);
+        ret = runner_run (&runner);
+        if (ret) {
+                gf_msg (this->name, GF_LOG_ERROR, 0,
+                        GD_MSG_SNAP_MOUNT_FAIL, "mounting the snapshot "
+                        "logical device %s failed (error: %s)",
+                        brickinfo->device_path, strerror (errno));
+                goto out;
+        } else
+                gf_msg_debug (this->name, 0, "mounting the snapshot "
+                        "logical device %s successful", brickinfo->device_path);
+
+out:
+        gf_msg_trace (this->name, 0, "Returning with %d", ret);
+        return ret;
+}
+
+int glusterd_snapshot_umount(glusterd_volinfo_t *snap_vol,
+		             glusterd_brickinfo_t *brickinfo,
+			     const char *mount_pt)
+{
+        int                     ret               = -1;
+        int                     retry_count       = 0;
+        glusterd_conf_t        *priv              = NULL;
+        char                    pidfile[PATH_MAX] = {0, };
+        pid_t                   pid               = -1;
+        gf_boolean_t            unmount           = _gf_true;
+	char                   *mnt_pt            = NULL;
+        xlator_t               *this              = NULL;
+
+        this = THIS;
+        GF_ASSERT (this);
+        priv = this->private;
+        GF_ASSERT (priv);
+        GF_ASSERT (mount_pt);
+	GF_ASSERT (brickinfo);
+	GF_ASSERT (snap_vol);
+
+        GLUSTERD_GET_BRICK_PIDFILE (pidfile, snap_vol, brickinfo, priv);
+        if (gf_is_service_running (pidfile, &pid)) {
+                int send_attach_req (xlator_t *this, struct rpc_clnt *rpc,
+                                     char *path, int op);
+                (void) send_attach_req (this, brickinfo->rpc,
+                                        brickinfo->path,
+                                        GLUSTERD_BRICK_TERMINATE);
+                brickinfo->status = GF_BRICK_STOPPED;
+        }
+
+        /* Check if the brick is mounted and then try unmounting the brick */
+        ret = glusterd_get_brick_root (brickinfo->path, &mnt_pt);
+        if (ret) {
+                gf_msg (this->name, GF_LOG_WARNING, 0,
+                        GD_MSG_BRICK_PATH_UNMOUNTED, "Getting the root "
+                        "of the brick for volume %s (snap %s) (device %s) "
+			"failed.", snap_vol->volname,
+			snap_vol->snapshot->snapname, brickinfo->device_path);
+                /* The brick path is already unmounted. Remove the lv only *
+                 * Need not fail the operation */
+                ret = 0;
+                unmount = _gf_false;
+        }
+
+        if ((unmount == _gf_true) && (strcmp (mnt_pt, mount_pt))) {
+                gf_msg (this->name, GF_LOG_WARNING, 0,
+                        GD_MSG_BRICK_PATH_UNMOUNTED,
+                        "Volume is not mounted for brick %s:%s "
+                        "device (%s).", brickinfo->hostname,
+                        brickinfo->path, brickinfo->device_path);
+                /* The brick path is already unmounted. Remove the lv only *
+                 * Need not fail the operation */
+                unmount = _gf_false;
+        }
+
+        /* umount cannot be done when the brick process is still in the process
+           of shutdown, so give three re-tries */
+        while ((unmount == _gf_true) && (retry_count < 3)) {
+                retry_count++;
+                /*umount2 system call doesn't cleanup mtab entry after un-mount.
+                  So use external umount command*/
+                ret = glusterd_umount(mount_pt, _gf_false);
+                if (!ret)
+                        break;
+
+                gf_msg_debug (this->name, 0, "umount failed for "
+                        "path %s (brick: %s): %s. Retry(%d)", mount_pt,
+                        brickinfo->path, strerror (errno), retry_count);
+
+                /*
+                 * This used to be one second, but that wasn't long enough
+                 * to get past the spurious EPERM errors that prevent some
+                 * tests (especially bug-1162462.t) from passing reliably.
+                 *
+                 * TBD: figure out where that garbage is coming from
+                 */
+                sleep (3);
+        }
+        if (ret) {
+                gf_msg (this->name, GF_LOG_ERROR, 0,
+                        GD_MSG_UNOUNT_FAILED, "umount failed for "
+                        "path %s (brick: %s): %s.", mount_pt,
+                        brickinfo->path, strerror (errno));
+                /*
+                 * This is cheating, but necessary until we figure out how to
+                 * shut down a brick within a still-living brick daemon so that
+                 * random translators aren't keeping the mountpoint alive.
+                 *
+                 * TBD: figure out a real solution
+                 */
+                ret = 0;
+        }
+
+	return ret;
+}
+
+
 int
 glusterd_snap_geo_rep_restore (glusterd_volinfo_t *snap_volinfo,
                                glusterd_volinfo_t *new_volinfo)
