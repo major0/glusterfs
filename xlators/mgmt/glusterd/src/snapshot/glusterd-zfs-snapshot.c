@@ -142,8 +142,7 @@ glusterd_zfs_snapshot_create (glusterd_brickinfo_t *brickinfo,
 	int              ret              = -1;
 	char            *zpool_name       = NULL;
 	char            *zpool_id         = NULL;
-	char            zfs_clone[PATH_MAX] = "";
-	char            zfs_mntpt[256]	  = "";
+	char             zfs_clone[PATH_MAX] = "";
 	runner_t         runner           = {0,};
 	xlator_t        *this             = NULL;
 
@@ -198,31 +197,12 @@ glusterd_zfs_snapshot_create (glusterd_brickinfo_t *brickinfo,
 	runner_add_args (&runner, "zfs", "clone", brickinfo->device_path,
 	                 zfs_clone, NULL);
 	runner_log (&runner, this->name, GF_LOG_DEBUG, msg);
-	ret = runner_start (&runner);
+	ret = runner_run (&runner);
 	if (ret) {
 		gf_msg (this->name, GF_LOG_ERROR, 0, GD_MSG_SNAP_CREATION_FAIL,
 			"taking clone of the brick (%s) of device %s %s failed",
 			origin_brick_path, brickinfo->device_path, zfs_clone);
-
-		runner_end(&runner);
 		goto out;
-	}
-	runner_end(&runner);
-
-	gf_log (this->name, GF_LOG_DEBUG, "mounting zfs clone %s on %s",
-	        zfs_clone, brickinfo->path);
-	runinit(&runner);
-	snprintf (msg, sizeof (msg), "mount clone of the brick %s",
-			origin_brick_path);
-	sprintf(zfs_mntpt, "mountpoint=%s", brickinfo->path);
-	runner_add_args (&runner, "zfs", "set", zfs_mntpt, zfs_clone, NULL);
-	runner_log (&runner, this->name, GF_LOG_DEBUG, msg);
-	ret = runner_run (&runner);
-	if (ret) {
-		gf_msg (this->name, GF_LOG_ERROR, 0, GD_MSG_SNAP_CREATION_FAIL,
-			"taking snapshot of the brick (%s) "
-			"of device %s %s failed",
-			origin_brick_path, zfs_mntpt, zfs_clone);
 	}
 out:
         return ret;
@@ -405,11 +385,26 @@ glusterd_zfs_snapshot_remove (glusterd_volinfo_t *snap_vol,
         glusterd_conf_t        *priv                      = NULL;
         runner_t                runner                    = {0,};
         char                    msg[1024]                 = {0, };
+        char                    pidfile[PATH_MAX]         = {0, };
+        pid_t                   pid                       = -1;
 
         this = THIS;
         GF_ASSERT (this);
         priv = this->private;
         GF_ASSERT (priv);
+        GF_ASSERT (mount_pt);
+        GF_ASSERT (brickinfo);
+        GF_ASSERT (snap_device);
+
+        GLUSTERD_GET_BRICK_PIDFILE (pidfile, snap_vol, brickinfo, priv);
+        if (gf_is_service_running (pidfile, &pid)) {
+                int send_attach_req (xlator_t *this, struct rpc_clnt *rpc,
+                                     char *path, int op);
+                (void) send_attach_req (this, brickinfo->rpc,
+                                        brickinfo->path,
+                                        GLUSTERD_BRICK_TERMINATE);
+                brickinfo->status = GF_BRICK_STOPPED;
+        }
 
 	runner_add_args (&runner, "/sbin/zfs", "destroy", snap_device, NULL);
         runner_log (&runner, "", GF_LOG_DEBUG, msg);
@@ -428,6 +423,62 @@ out:
         return ret;
 }
 
+static int
+glusterd_zfs_snapshot_mount (glusterd_brickinfo_t *brickinfo,
+                             char *brick_mount_path)
+{
+        char               msg[NAME_MAX]  = "";
+	char		   buf[PATH_MAX]  = {0};
+        int32_t            ret            = -1;
+        runner_t           runner         = {0, };
+        xlator_t          *this           = NULL;
+	char               zfs_mntpt[256] = "";
+	char              *zpool_name     = NULL;
+	char              *zpool_id       = NULL;
+	char               zfs_clone[PATH_MAX] = "";
+
+        this = THIS;
+        GF_ASSERT (this);
+        GF_ASSERT (brick_mount_path);
+        GF_ASSERT (brickinfo);
+
+	strncpy(buf, brickinfo->device_path, sizeof(buf));
+	zpool_name = strtok(buf, "@");
+	if (!zpool_name) {
+		gf_msg (this->name, GF_LOG_ERROR, 0, GD_MSG_MOUNT_REQ_FAIL,
+			"Could not get zfs pool name");
+		goto out;
+	}
+	gf_log (this->name, GF_LOG_DEBUG, "zpool_name = %s", zpool_name);
+
+	zpool_id   = strtok(NULL, "@");
+	if (!zpool_id) {
+		gf_msg (this->name, GF_LOG_ERROR, 0, GD_MSG_MOUNT_REQ_FAIL,
+			"Could not get zfs pool id");
+		goto out;
+	}
+	gf_log (this->name, GF_LOG_DEBUG, "zpool_id = %s", zpool_id);
+
+	sprintf(zfs_clone, "%s/%s", zpool_name, zpool_id);
+
+	gf_log (this->name, GF_LOG_DEBUG, "mounting zfs clone %s on %s",
+	        zfs_clone, brickinfo->path);
+	runinit(&runner);
+	snprintf (msg, sizeof (msg), "mount clone %s on %s",
+			zfs_clone, brick_mount_path);
+	sprintf(zfs_mntpt, "mountpoint=%s", brick_mount_path);
+	runner_add_args (&runner, "zfs", "set", zfs_mntpt, zfs_clone, NULL);
+	runner_log (&runner, this->name, GF_LOG_DEBUG, msg);
+	ret = runner_run (&runner);
+	if (ret) {
+		gf_msg (this->name, GF_LOG_ERROR, 0, GD_MSG_MOUNT_REQ_FAIL,
+			"failed to mount %s", zfs_clone);
+	}
+
+out:
+	return ret;
+}
+
 struct glusterd_snap_ops zfs_snap_ops = {
 	.name		= "ZFS",
 	.probe		= glusterd_zfs_probe,
@@ -436,4 +487,5 @@ struct glusterd_snap_ops zfs_snap_ops = {
 	.create		= glusterd_zfs_snapshot_create,
 	.missed		= glusterd_zfs_snapshot_missed,
 	.remove		= glusterd_zfs_snapshot_remove,
+	.mount		= glusterd_zfs_snapshot_mount,
 };
