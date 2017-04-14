@@ -208,6 +208,7 @@ struct glusterd_brickinfo {
         char               mount_dir[PATH_MAX];
         char               brick_id[1024];/*Client xlator name, AFR changelog name*/
         char               fstype [NAME_MAX]; /* Brick file-system type */
+        char               snap_type [NAME_MAX]; /* Brick snapshot type */
         char               mnt_opts [1024]; /* Brick mount options */
         struct cds_list_head   brick_list;
         uuid_t             uuid;

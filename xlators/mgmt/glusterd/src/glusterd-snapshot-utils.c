@@ -468,6 +468,13 @@ glusterd_snap_volinfo_restore (dict_t *dict, dict_t *rsp_dict,
                         strncpy (new_brickinfo->fstype, value,
                                  sizeof(new_brickinfo->fstype));
 
+                snprintf (key, sizeof (key), "snap%d.brick%d.snap_type",
+                          volcount, brick_count);
+                ret = dict_get_str (dict, key, &value);
+                if (!ret)
+                        strncpy (new_brickinfo->snap_type, value,
+                                 sizeof(new_brickinfo->snap_type));
+
                 snprintf (key, sizeof (key), "snap%d.brick%d.mnt_opts",
                           volcount, brick_count);
                 ret = dict_get_str (dict, key, &value);
@@ -712,6 +719,18 @@ gd_add_brick_snap_details_to_dict (dict_t *dict, char *prefix,
                          brickinfo->hostname, brickinfo->path);
                 goto out;
         }
+
+        snprintf (key, sizeof (key), "%s.snap_type", prefix);
+        ret = dict_set_str (dict, key, brickinfo->snap_type);
+        if (ret) {
+                gf_msg (this->name, GF_LOG_ERROR, 0,
+                        GD_MSG_DICT_SET_FAILED,
+                        "Failed to set snap_type for %s:%s",
+                         brickinfo->hostname, brickinfo->path);
+                goto out;
+        }
+
+
 
         snprintf (key, sizeof (key), "%s.mnt_opts", prefix);
         ret = dict_set_str (dict, key, brickinfo->mnt_opts);
@@ -1075,6 +1094,7 @@ gd_import_new_brick_snap_details (dict_t *dict, char *prefix,
         char             key[512]    = {0,};
         char            *snap_device = NULL;
         char            *fs_type     = NULL;
+        char            *snap_type   = NULL;
         char            *mnt_opts    = NULL;
         char            *mount_dir   = NULL;
 
@@ -1118,6 +1138,15 @@ gd_import_new_brick_snap_details (dict_t *dict, char *prefix,
                 goto out;
         }
         strcpy (brickinfo->fstype, fs_type);
+
+        snprintf (key, sizeof (key), "%s.snap_type", prefix);
+        ret = dict_get_str (dict, key, &snap_type);
+        if (ret) {
+                gf_msg (this->name, GF_LOG_ERROR, 0,
+                        GD_MSG_DICT_GET_FAILED, "%s missing in payload", key);
+                goto out;
+        }
+        strcpy (brickinfo->snap_type, snap_type);
 
         snprintf (key, sizeof (key), "%s.mnt_opts", prefix);
         ret = dict_get_str (dict, key, &mnt_opts);

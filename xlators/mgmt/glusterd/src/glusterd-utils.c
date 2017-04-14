@@ -785,6 +785,7 @@ glusterd_brickinfo_dup (glusterd_brickinfo_t *brickinfo,
         strcpy (dup_brickinfo->real_path, brickinfo->real_path);
         strcpy (dup_brickinfo->device_path, brickinfo->device_path);
         strcpy (dup_brickinfo->fstype, brickinfo->fstype);
+        strcpy (dup_brickinfo->snap_type, brickinfo->snap_type);
         strcpy (dup_brickinfo->mnt_opts, brickinfo->mnt_opts);
         ret = gf_canonicalize_path (dup_brickinfo->path);
         if (ret) {
@@ -11901,6 +11902,7 @@ glusterd_update_mntopts (char *brick_path, glusterd_brickinfo_t *brickinfo)
         strncpy (brickinfo->fstype, entry->mnt_type,
                  (sizeof (brickinfo->fstype) - 1));
         strcpy (brickinfo->mnt_opts, entry->mnt_opts);
+	(void)glusterd_snapshot_probe(mnt_pt, brickinfo);
 
         ret = 0;
 out:

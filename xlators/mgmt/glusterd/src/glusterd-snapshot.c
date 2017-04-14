@@ -1028,6 +1028,18 @@ glusterd_snapshot_restore_prevalidate (dict_t *dict, char **op_errstr,
                         }
 
                         snprintf (key, sizeof (key),
+                                  "snap%d.brick%d.snap_type",
+                                  volcount, brick_count);
+                        ret = dict_set_str (rsp_dict, key,
+                                            brickinfo->snap_type);
+                        if (ret) {
+                                gf_msg (this->name, GF_LOG_ERROR, 0,
+                                        GD_MSG_DICT_SET_FAILED,
+                                        "Failed to set %s", key);
+                                goto out;
+                        }
+
+                        snprintf (key, sizeof (key),
                                   "snap%d.brick%d.mnt_opts",
                                   volcount, brick_count);
                         ret = dict_set_str (rsp_dict, key,
@@ -1484,6 +1496,27 @@ glusterd_snap_create_clone_pre_val_use_rsp_dict (dict_t *dst, dict_t *src)
 
                         snprintf (key, sizeof(key) - 1,
                                   "vol%"PRId64".fstype%"PRId64, i+1,
+                                  brick_order);
+                        ret = dict_set_dynstr_with_alloc (dst, key, value);
+                        if (ret) {
+                                gf_msg (this->name, GF_LOG_ERROR, 0,
+                                        GD_MSG_DICT_SET_FAILED,
+                                        "Failed to set %s", key);
+                                goto out;
+                        }
+
+                        snprintf (key, sizeof(key) - 1,
+                                  "vol%"PRId64".snap_type%"PRId64, i+1, j);
+                        ret = dict_get_str (src, key, &value);
+                        if (ret) {
+                                gf_msg (this->name, GF_LOG_WARNING, 0,
+                                        GD_MSG_DICT_GET_FAILED,
+                                        "Unable to fetch %s", key);
+                                continue;
+                        }
+
+                        snprintf (key, sizeof(key) - 1,
+                                  "vol%"PRId64".snap_type%"PRId64, i+1,
                                   brick_order);
                         ret = dict_set_dynstr_with_alloc (dst, key, value);
                         if (ret) {
@@ -2071,6 +2104,17 @@ glusterd_snap_create_clone_common_prevalidate (dict_t *rsp_dict, int flags,
                           PRId64, i, brick_count);
                 ret = dict_set_dynstr_with_alloc (rsp_dict, key,
                                                   brickinfo->fstype);
+                if (ret) {
+                        gf_msg (this->name, GF_LOG_ERROR, 0,
+                                GD_MSG_DICT_SET_FAILED,
+                                "Failed to set %s", key);
+                        goto out;
+                }
+
+                snprintf (key, sizeof(key), "vol%"PRId64".snap_type%"
+                          PRId64, i, brick_count);
+                ret = dict_set_dynstr_with_alloc (rsp_dict, key,
+                                                  brickinfo->snap_type);
                 if (ret) {
                         gf_msg (this->name, GF_LOG_ERROR, 0,
                                 GD_MSG_DICT_SET_FAILED,
@@ -4585,6 +4629,19 @@ glusterd_add_brick_to_snap_volume (dict_t *dict, dict_t *rsp_dict,
                 strcpy (original_brickinfo->fstype, value);
                 strncpy (snap_brickinfo->fstype, value,
                          (sizeof (snap_brickinfo->fstype) - 1));
+        } else {
+                if (is_origin_glusterd (dict) == _gf_true)
+                        add_missed_snap = _gf_true;
+        }
+
+        snprintf (key, sizeof(key) - 1, "vol%"PRId64".snap_type%d", volcount,
+                  brick_count);
+        ret = dict_get_str (dict, key, &value);
+        if (!ret) {
+                /* Update the snap_type in original brickinfo as well */
+                strcpy (original_brickinfo->snap_type, value);
+                strncpy (snap_brickinfo->snap_type, value,
+                         (sizeof (snap_brickinfo->snap_type) - 1));
         } else {
                 if (is_origin_glusterd (dict) == _gf_true)
                         add_missed_snap = _gf_true;

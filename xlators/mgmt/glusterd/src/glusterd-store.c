@@ -340,6 +340,18 @@ gd_store_brick_snap_details_write (int fd, glusterd_brickinfo_t *brickinfo)
                 }
         }
 
+        if (strlen (brickinfo->snap_type) > 0) {
+                snprintf (value, sizeof (value), "%s", brickinfo->snap_type);
+                ret = gf_store_save_value (fd,
+                                GLUSTERD_STORE_KEY_BRICK_SNAPTYPE, value);
+                if (ret) {
+                        gf_msg (this->name, GF_LOG_ERROR, 0,
+                                GD_MSG_FS_LABEL_UPDATE_FAIL, "Failed to save "
+                                "brick fs type of brick %s", brickinfo->path);
+                        goto out;
+                }
+        }
+
         if (strlen (brickinfo->mnt_opts) > 0) {
                 snprintf (value, sizeof (value), "%s", brickinfo->mnt_opts);
                 ret = gf_store_save_value (fd,
@@ -2500,6 +2512,10 @@ glusterd_store_retrieve_bricks (glusterd_volinfo_t *volinfo)
                                              strlen (GLUSTERD_STORE_KEY_BRICK_FSTYPE))) {
                                 strncpy (brickinfo->fstype, value,
                                          sizeof (brickinfo->fstype));
+                        } else if (!strncmp (key, GLUSTERD_STORE_KEY_BRICK_SNAPTYPE,
+                                             strlen (GLUSTERD_STORE_KEY_BRICK_SNAPTYPE))) {
+                                strncpy (brickinfo->snap_type, value,
+                                         sizeof (brickinfo->snap_type));
                         } else if (!strncmp (key, GLUSTERD_STORE_KEY_BRICK_MNTOPTS,
                                              strlen (GLUSTERD_STORE_KEY_BRICK_MNTOPTS))) {
                                 strncpy (brickinfo->mnt_opts, value,
@@ -3394,9 +3410,6 @@ out:
 
 /* Check if brick_mount_path is already mounted. If not, mount the device_path
  * at the brick_mount_path
- #
- * FIXME if the brick/snapshot isn't mounted then we have no way to probe the
- * supported snapshot type.
  */
 int32_t
 glusterd_mount_brick_paths (char *brick_mount_path,
